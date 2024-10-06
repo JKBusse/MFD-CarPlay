@@ -24,7 +24,7 @@ framebuffer_width=456
 framebuffer_height=342
 dpi_mode=87
 
-#288p@50
+#234p@50
 hdmi_timings=384 1 16 32 40 234 1 3 2 19 0 0 0 50 0 7363200 1
 
 # Enable audio (loads snd_bcm2835)
