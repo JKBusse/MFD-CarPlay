@@ -1,0 +1,13 @@
+MFD Video Kabel Pinout
+Pin MFD		Signal		Farbe Kabelende		9SUB-D
+8		Video Blau	Blau			3
+9		Video Grün	Grün			2
+10		Video Rot	Rot			1
+2		Audio Links	Weiss			6
+7		Video ON	Schwarz			9
+1		Audio Masse	Pink			5	
+5		Video Masse	Grau			5
+6		PAL/NTSC	Braun			8
+4		C Sync		Gelb			4
+3		Audio Rechts	Orange			7
+11		Schirm		Geflecht		Gehäuse
