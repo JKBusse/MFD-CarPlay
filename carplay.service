@@ -1,0 +1,11 @@
+[Unit]
+Description=REACT Carplay
+After=lightdm.service
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/react-carplay-4.0.5-arm64.AppImage
+Environment=XAUTHORITY=/home/dogs/.Xauthority
+Environment=DISPLAY=:0
+
+[Install]
+WantedBy=multi-user.target
