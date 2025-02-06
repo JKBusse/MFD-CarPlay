@@ -1,14 +1,18 @@
-#Overclocking
-over_voltage=6
+# Enable audio (loads snd_bcm2835)
+dtparam=audio=on
+boot_delay=0
+
 arm_freq=2000
 gpu_freq=750
+over_voltage=6
+disable_splash=1
 
-#Turn Off buses
+disable_poe_fan=1
+
 dtparam=i2c_arm=off
 dtparam=i2s=off
 dtparam=spi=off
 
-#Set the right Overlay
 dtoverlay=vga666
 dpi_output_format=0x15
 enable_dpi_lcd=1
@@ -16,60 +20,29 @@ display_default_lcd=1
 dpi_group=2
 dpi_mode=87
 
-#Overscan
 overscan_left=17
 overscan_right=0
-overscan_top=0
+overscan_top=7
 overscan_bottom=0
 
 #Framebuffer
-framebuffer_width=704
-framebuffer_height=576
+framebuffer_width=752
+framebuffer_height=552
 
-#HDMI Timings
-#hdmi_timings=356 1 16 32 40 288 1 3 2 19 0 0 0 50 0 7363200 1 #PAL OLD 356x288 50hz
-hdmi_timings=352 1 16 32 40 288 1 3 2 19 0 0 0 50 0 7363200 1 #PAL NEW 352x288 50hz
-#hdmi_timings=384 1 16 32 40 288 1 3 2 19 0 0 0 50 0 7363200 1 #NTSC 384x288 60hz
+#hdmi_timings=352 1 16 32 40 288 1 3 2 19 0 0 0 50 0 7363200 1 #PAL NEW 352x288 50hz
+hdmi_timings=376 1 16 32 40 276 1 3 2 19 0 0 0 50 0 7363200 1
 
-# Enable audio (loads snd_bcm2835)
-dtparam=audio=on
-
-# Additional overlays and parameters are documented
-# /boot/firmware/overlays/README
-
-# Automatically load overlays for detected cameras
-camera_auto_detect=1
-
-# Automatically load overlays for detected DSI displays
-#display_auto_detect=1
-
-# Automatically load initramfs files, if found
-#auto_initramfs=1
-
-# Enable DRM VC4 V3D driver
-#dtoverlay=vc4-kms-v3d
-#max_framebuffers=2
-
-# Don't have the firmware create an initial video= setting in cmdline.txt.
-# Use the kernel's default instead.
-disable_fw_kms_setup=1
-
-# Run in 64-bit mode
-arm_64bit=1
-
-# Disable compensation for displays with overscan
+#disable_fw_kms_setup=0
 disable_overscan=0
-#disable_overscan=1
-# Run as fast as firmware / board allows
-arm_boost=1
-
-[cm4]
-# Enable host mode on the 2711 built-in XHCI USB controller.
-# This line should be removed if the legacy DWC2 controller is required
-# (e.g. for USB device mode) or if USB support is not required.
-otg_mode=1
-
-[cm5]
-dtoverlay=dwc2,dr_mode=host
-
+[pi4]
+# Enable DRM VC4 V3D driver on top of the dispmanx display stack
+#dtoverlay=vc4-fkms-v3d
+#max_framebuffers=2
+disable_fw_kms_setup=1
+dtoverlay=vc4-kms-v3d,noaudio,nohdmi
+dtoverlay=vc4-kms-dpi-generic,hactive=320,hfp=19,hsync=43,hbp=36
 [all]
+intial_turbo=30
+
+#start_x=0
+enable_uart=0
