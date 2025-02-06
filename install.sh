@@ -10,9 +10,7 @@ mkdir MFD-CarPlay # Create a directory for CarPlay
 cd MFD-CarPlay
 wget https://github.com/rhysmorgan134/react-carplay/releases/download/v4.0.5/react-carplay-4.0.5-arm64.AppImage # Download the latest release of React-CarPlay
 chmod +x react-carplay-4.0.5-arm64.AppImage # Make the AppImage executable
-sudo su # Switch to root user
-echo "SUBSYSTEM==\"usb\", ATTR{idVendor}==\"1314\", ATTR{idProduct}==\"152*\", MODE=\"0660\", GROUP=\"plugdev\"" > /etc/udev/rules.d/52-nodecarplay.rules # Add a udev rule for the CarPlay dongle
-exit # Exit the root user
+echo 'SUBSYSTEM=="usb", ATTR{idVendor}=="1314", ATTR{idProduct}=="152*", MODE="0660", GROUP="plugdev"' | sudo tee /etc/udev/rules.d/52-nodecarplay.rules > /dev/null # Add a udev rule for CarPlay Dongle
 sudo raspi-config nonint do_wayland W1 # Set the display manager to X11
 sudo systemctl restart lightdm.service # Restart the display manager to apply the change to X11
 sudo raspi-config nonint do_vnc 0 -y # Enable VNC
