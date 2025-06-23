@@ -15,8 +15,9 @@ The goal of this project is to bring modern smartphone integration (Apple CarPla
 - Uses a Raspberry Pi HAT for communication with the MFD system.
 
 ## The HAT
-![PCB](https://github.com/user-attachments/assets/e77e90d2-c2f0-4727-88b3-8abe44e57822)
-![3D Rendering](https://github.com/user-attachments/assets/c9396025-3f56-4ec6-9fb6-c59e2b9fb428)
+![PCB](https://github.com/user-attachments/assets/61a58314-21f9-43bd-94f5-555c2fa2c0d7)
+![3D Render](https://github.com/user-attachments/assets/54b43412-affa-4e3c-86e5-b4fc0504f049)
+
 
 ## Requirements
 
