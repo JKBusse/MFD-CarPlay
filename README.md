@@ -11,9 +11,12 @@ The goal of this project is to bring modern smartphone integration (Apple CarPla
 
 ## Features
 
-- Integration of Apple CarPlay into the VW MFD Radio Navigation System (1999 model).
+- Integration of Apple CarPlay into the VW MFD Radio Navigation System.
 - Uses a Raspberry Pi HAT for communication with the MFD system.
-- Custom software to handle CarPlay functionality.
+
+## The HAT
+![PCB](https://github.com/user-attachments/assets/e77e90d2-c2f0-4727-88b3-8abe44e57822)
+![3D Rendering](https://github.com/user-attachments/assets/c9396025-3f56-4ec6-9fb6-c59e2b9fb428)
 
 ## Requirements
 
