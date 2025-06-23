@@ -18,7 +18,7 @@ The goal of this project is to bring modern smartphone integration (Apple CarPla
 ## Requirements
 
 - Raspberry Pi (Model 3 or newer recommended)
-- Raspberry Pi HAT
+- Raspberry Pi MFD HAT
 - VW Radio Navigation System MFD (1999 model)
 - Dependencies (listed below)
 
