@@ -15,7 +15,7 @@ sudo chmod +x setup-pi.sh   # Make the CarPlay setup script executable
 #sudo raspi-config nonint do_vnc 0 -y # Enable VNC
 sudo raspi-config nonint do_boot_behaviour B4 # Set the boot behaviour to Desktop with autologin
 
-sudo sh -c "echo -n uvcvideo.quirks=2 >> /boot/firmware/cmdline.txt # Add the uvcvideo quirks for rvc
+sudo sh -c "echo -n uvcvideo.quirks=2 >> /boot/firmware/cmdline.txt" # Add the uvcvideo quirks for rvc
 
 sleep 5 # Wait 5 sec. before rebooting
-sudo reboot # Reboot the Raspberry Pi
+sudo reboot #Reboot the Raspberry Pi
