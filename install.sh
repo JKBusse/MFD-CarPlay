@@ -5,6 +5,11 @@ sudo apt-get upgrade -y # Upgrade the installed packages
 sudo apt-get install libxi-dev libx11-dev libxrandr-dev txt2man -y # Install the required packages for the touch calibration tool
 sudo mv config.txt /boot/firmware/config.txt # Move the config.txt file to the boot partition
 
+cd /home/pi/desktop # Change to the Desktop directory
+git clone https://github.com/kreijack/xlibinput_calibrator.git
+cd xlibinput_calibrator/src/
+make
+
 cd /home/pi/Downloads # Change to the Downloads directory
 curl -LO https://raw.githubusercontent.com/f-io/pi-carplay/main/setup-pi.sh # Download the CarPlay setup script
 sudo chmod +x setup-pi.sh   # Make the CarPlay setup script executable

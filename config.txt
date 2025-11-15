@@ -1,4 +1,4 @@
-# Enable audio (loads snd_bcm2835)
+# Enable audio (loads snd_bcm2835)  
 dtparam=audio=on
 boot_delay=0
 
