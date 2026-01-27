@@ -1,4 +1,4 @@
-# Enable audio (loads snd_bcm2835)  
+# Enable audio (loads snd_bcm2835)
 dtparam=audio=on
 boot_delay=0
 
@@ -13,7 +13,7 @@ dtparam=i2c_arm=off
 dtparam=i2s=off
 dtparam=spi=off
 
-dtoverlay=vga666
+#dtoverlay=vga666
 dpi_output_format=0x15
 enable_dpi_lcd=1
 display_default_lcd=1
@@ -38,9 +38,11 @@ disable_overscan=0
 # Enable DRM VC4 V3D driver on top of the dispmanx display stack
 #dtoverlay=vc4-fkms-v3d
 #max_framebuffers=2
-disable_fw_kms_setup=1
-dtoverlay=vc4-kms-v3d,noaudio,nohdmi
-dtoverlay=vc4-kms-dpi-generic,hactive=320,hfp=19,hsync=43,hbp=36
+#disable_fw_kms_setup=1
+#dtoverlay=vc4-kms-v3d,noaudio,nohdmi
+#dtoverlay=vc4-kms-dpi-generic,hactive=320,hfp=19,hsync=43,hbp=36
+dtoverlay=vc4-kms-dpi-generic
+dtparam=rgb666=1
 [all]
 intial_turbo=30
 

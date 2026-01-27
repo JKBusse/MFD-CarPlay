@@ -11,7 +11,7 @@ cd xlibinput_calibrator/src/
 make
 
 cd /home/pi/Downloads # Change to the Downloads directory
-curl -LO https://raw.githubusercontent.com/f-io/pi-carplay/main/setup-pi.sh # Download the CarPlay setup script
+curl -LO https://raw.githubusercontent.com/f-io/LIVI/refs/heads/main/setup-pi.sh # Download the CarPlay setup script
 sudo chmod +x setup-pi.sh   # Make the CarPlay setup script executable
 ./setup-pi.sh   # Run the CarPlay setup script
 
