@@ -63,19 +63,20 @@ dtparam=rgb666=1
 dtparam=hactive=376  # Horizontal active pixels (400)
 dtparam=hsync-invert
 dtparam=hfp=16        # Horizontal front porch
-dtparam=hsync=64     # Horizontal sync pulse width
-dtparam=hbp=40       # Horizontal back porch
+dtparam=hsync=32     # Horizontal sync pulse width
+dtparam=hbp=57       # Horizontal back porch
 
 # Set vertical timing parameters for 400x234 display
 dtparam=vactive=276  # Vertical active lines (234)
 dtparam=vsync-invert
 dtparam=vfp=10       # Vertical front porch
 dtparam=vsync=2      # Vertical sync pulse width
-dtparam=vbp=20       # Vertical back porch (calculated)
+dtparam=vbp=20       # Vertical back porch (calculated) 
 
 # Set physical display size (in millimeters)
 dtparam=width-mm=144   # Physical width of the display
 dtparam=height-mm=78   # Physical height of the display
+
 
 # Set clock frequency (in Hz)
 dtparam=clock-frequency=8140000  # Adjusted for NTSC timing (8.05 MHz, vsync 59,7993Hz, hsync 15.787kHz)
