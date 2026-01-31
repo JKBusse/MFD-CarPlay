@@ -47,9 +47,9 @@ dtoverlay=dwc2,dr_mode=host
 
 [all]
 
-##################
-# MFD-HAT adapter #
-##################
+##########
+# MFD-HAT #
+##########
 
 # Set default-framebuffer to DPI/VGA666
 enable_dpi_lcd=1
