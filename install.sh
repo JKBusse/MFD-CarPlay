@@ -1,7 +1,7 @@
 !/bin/sh
 # This is a comment!
-sudo apt-get update -y # Update the package list
-sudo apt-get upgrade -y # Upgrade the installed packages
+#sudo apt-get update -y # Update the package list
+#sudo apt-get upgrade -y # Upgrade the installed packages
 sudo apt-get install libxi-dev libx11-dev libxrandr-dev txt2man -y # Install the required packages for the touch calibration tool
 sudo mv config/config.txt /boot/firmware/config.txt # Move the config.txt file to the boot partition
 
