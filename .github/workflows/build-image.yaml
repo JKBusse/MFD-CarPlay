@@ -29,8 +29,8 @@ jobs:
 
       - name: Download latest Raspberry Pi OS Lite (64bit)
         run: |
-          wget https://downloads.raspberrypi.org/raspios_lite_arm64_latest -O raspios.zip
-          unzip raspios.zip
+          wget https://downloads.raspberrypi.org/raspios_lite_arm64_latest -O raspios.xz
+          unzip raspios.xz
           IMG=$(ls *.img)
           echo "IMG_NAME=$IMG" >> $GITHUB_ENV
 
