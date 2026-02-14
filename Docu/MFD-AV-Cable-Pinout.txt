@@ -1,4 +1,4 @@
-                MFD Video Kabel Pinout
+                MFD Video Cable Pinout
 Pin MFD		Signal		    Cable color		    15D-SUb
 8		    Video Blue	    Blue			    3
 9		    Video Green	    Green			    2
@@ -8,6 +8,6 @@ Pin MFD		Signal		    Cable color		    15D-SUb
 1		    Audio Ground	Pink			    6	
 5		    Video Ground	Grey			    5   
 6		    PAL/NTSC	    Brown			    9
-4		    C Sync		    Yellow			    4
+4		    CSync		    Yellow			    4
 3		    Audio Right 	Orange			    7
 11		    Schield		    Schielding		    10

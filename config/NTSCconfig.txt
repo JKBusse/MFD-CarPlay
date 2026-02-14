@@ -74,8 +74,8 @@ dtparam=vsync=2      # Vertical sync pulse width
 dtparam=vbp=26       # Vertical back porch (calculated)
 
 # Set physical display size (in millimeters)
-dtparam=width-mm=102   # Physical width of the display
-dtparam=height-mm=75   # Physical height of the display
+dtparam=width-mm=144   # Physical width of the display
+dtparam=height-mm=78   # Physical height of the display
 
 
 # Set clock frequency (in Hz)

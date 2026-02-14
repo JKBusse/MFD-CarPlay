@@ -1,0 +1,82 @@
+name: Build Custom Raspberry Pi OS Image
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y \
+            qemu-user-static \
+            unzip \
+            wget \
+            xz-utils \
+            kpartx \
+            dosfstools \
+            rsync
+
+      - name: Download latest Raspberry Pi OS Lite (64bit)
+        run: |
+          wget https://downloads.raspberrypi.org/raspios_lite_arm64_latest -O raspios.zip
+          unzip raspios.zip
+          IMG=$(ls *.img)
+          echo "IMG_NAME=$IMG" >> $GITHUB_ENV
+
+      - name: Mount Image
+        run: |
+          sudo losetup -Pf $IMG_NAME
+          LOOPDEV=$(losetup -j $IMG_NAME | cut -d: -f1)
+          echo "LOOPDEV=$LOOPDEV" >> $GITHUB_ENV
+
+          sudo mkdir -p /mnt/rpi
+          sudo mount ${LOOPDEV}p2 /mnt/rpi
+          sudo mount ${LOOPDEV}p1 /mnt/rpi/boot
+
+      - name: Prepare chroot environment
+        run: |
+          sudo cp /usr/bin/qemu-aarch64-static /mnt/rpi/usr/bin/
+          sudo mount --bind /dev /mnt/rpi/dev
+          sudo mount --bind /sys /mnt/rpi/sys
+          sudo mount --bind /proc /mnt/rpi/proc
+
+      - name: Copy install script
+        run: |
+          sudo cp install.sh /mnt/rpi/install.sh
+          sudo chmod +x /mnt/rpi/install.sh
+
+      - name: Execute install.sh inside image
+        run: |
+          sudo chroot /mnt/rpi /bin/bash -c "/install.sh"
+          sudo rm /mnt/rpi/install.sh
+
+      - name: Cleanup mounts
+        run: |
+          sudo umount /mnt/rpi/dev
+          sudo umount /mnt/rpi/sys
+          sudo umount /mnt/rpi/proc
+          sudo umount /mnt/rpi/boot
+          sudo umount /mnt/rpi
+          sudo losetup -d $LOOPDEV
+
+      - name: Compress image
+        run: |
+          xz -T0 -z $IMG_NAME
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Custom Raspberry Pi OS Build ${{ github.run_number }}
+          files: "*.xz"
