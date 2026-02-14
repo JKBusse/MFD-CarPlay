@@ -32,7 +32,23 @@ jobs:
             wget -O raspios.img.xz -L https://downloads.raspberrypi.org/raspios_full_arm64_latest
             xz -d raspios.img.xz
             echo "IMG_NAME=raspios.img" >> $GITHUB_ENV
+      - name: Expand image size
+        run: |
+            # 4GB hinzufügen
+            truncate -s +4G $IMG_NAME
 
+            sudo losetup -Pf $IMG_NAME
+            LOOPDEV=$(losetup -j $IMG_NAME | cut -d: -f1)
+            echo "LOOPDEV=$LOOPDEV" >> $GITHUB_ENV
+
+            # Partition 2 (root) erweitern
+            sudo parted $LOOPDEV ---pretend-input-tty <<EOF
+            resizepart 2 100%
+            Yes
+            EOF
+
+            sudo e2fsck -f ${LOOPDEV}p2
+            sudo resize2fs ${LOOPDEV}p2
       - name: Mount Image
         run: |
           sudo losetup -Pf $IMG_NAME
