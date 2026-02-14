@@ -34,21 +34,22 @@ jobs:
             echo "IMG_NAME=raspios.img" >> $GITHUB_ENV
       - name: Expand image size
         run: |
-            # 4GB hinzufügen
+            # Image um 4GB vergrößern
             truncate -s +4G $IMG_NAME
 
+            # Loop Device neu setzen
+            sudo losetup -d $(losetup -j $IMG_NAME | cut -d: -f1) 2>/dev/null || true
             sudo losetup -Pf $IMG_NAME
             LOOPDEV=$(losetup -j $IMG_NAME | cut -d: -f1)
             echo "LOOPDEV=$LOOPDEV" >> $GITHUB_ENV
 
-            # Partition 2 (root) erweitern
-            sudo parted $LOOPDEV ---pretend-input-tty <<EOF
-            resizepart 2 100%
-            Yes
-            EOF
+            # Partition 2 auf 100% erweitern (non-interactive)
+            sudo parted -s $LOOPDEV resizepart 2 100%
 
-            sudo e2fsck -f ${LOOPDEV}p2
+            # Filesystem prüfen & erweitern (non-interactive)
+            sudo e2fsck -fy ${LOOPDEV}p2
             sudo resize2fs ${LOOPDEV}p2
+
       - name: Mount Image
         run: |
           sudo losetup -Pf $IMG_NAME
