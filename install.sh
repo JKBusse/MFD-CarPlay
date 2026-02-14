@@ -1,4 +1,5 @@
-!/bin/sh
+#!/bin/bash
+set -e
 # This is a comment!
 sudo apt-get update -y # Update the package list
 sudo apt-get upgrade -y # Upgrade the installed packages
@@ -23,5 +24,5 @@ sudo raspi-config nonint do_boot_behaviour B4 # Set the boot behaviour to Deskto
 
 #sudo sh -c "echo -n uvcvideo.quirks=2 >> /boot/firmware/cmdline.txt" # Add the uvcvideo quirks for rvc
 
-sleep 5 # Wait 5 sec. before rebooting
-sudo reboot #Reboot the Raspberry Pi
+#sleep 5 # Wait 5 sec. before rebooting
+#sudo reboot #Reboot the Raspberry Pi

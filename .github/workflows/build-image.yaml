@@ -29,7 +29,7 @@ jobs:
 
       - name: Download latest Raspberry Pi OS Lite (64bit)
         run: |
-            wget -O raspios.img.xz -L https://downloads.raspberrypi.org/raspios_lite_arm64_latest
+            wget -O raspios.img.xz -L https://downloads.raspberrypi.org/raspios_full_arm64_latest
             xz -d raspios.img.xz
             echo "IMG_NAME=raspios.img" >> $GITHUB_ENV
 
@@ -77,5 +77,5 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: build-${{ github.run_number }}
-          name: Custom Raspberry Pi OS Build ${{ github.run_number }}
+          name: MFD-CarPlay V1.0. ${{ github.run_number }}
           files: "*.xz"
