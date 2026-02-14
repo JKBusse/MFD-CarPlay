@@ -53,9 +53,6 @@ jobs:
 
       - name: Mount Image
         run: |
-          sudo losetup -Pf "$IMG_NAME"
-          LOOPDEV=$(losetup -j "$IMG_NAME" | cut -d: -f1)
-          echo "LOOPDEV=$LOOPDEV" >> $GITHUB_ENV
 
           sudo mkdir -p /mnt/rpi
           sudo mount ${LOOPDEV}p2 /mnt/rpi
