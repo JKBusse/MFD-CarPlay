@@ -3,7 +3,7 @@ name: Build Custom Raspberry Pi OS Image
 on:
   workflow_dispatch:
   push:
-    branches: [ main ]
+    branches: [ livi ]
 
 jobs:
   build:
