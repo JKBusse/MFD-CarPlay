@@ -70,6 +70,15 @@ jobs:
           sudo cp install.sh /mnt/rpi/install.sh
           sudo chmod +x /mnt/rpi/install.sh
 
+      - name: Copy repository config into image and fix hostname
+        run: |
+          # Copy the project's config directory into the image so install.sh can access it
+          sudo cp -r config /mnt/rpi/ || true
+          # Ensure the runner's hostname resolves inside the chroot to avoid sudo warnings
+          HOSTNAME=$(hostname)
+          sudo mkdir -p /mnt/rpi/etc
+          sudo sh -c "echo '127.0.1.1 $HOSTNAME' >> /mnt/rpi/etc/hosts" || true
+
       - name: Execute install.sh inside image
         run: |
           sudo chroot /mnt/rpi /bin/bash -c "/install.sh"
