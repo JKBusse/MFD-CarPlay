@@ -17,7 +17,7 @@ $SUDO apt-get install -y libxi-dev libx11-dev libxrandr-dev txt2man
 if [ -f config/config.txt ]; then
 	# Ensure target directory exists (some images mount boot at /boot, but not /boot/firmware)
 	$SUDO mkdir -p /boot/firmware
-	$SUDO mv config/config.txt /boot/firmware/config.txt
+	$SUDO cp config/config.txt /boot/firmware/config.txt
 else
 	echo "Warning: config/config.txt not found, skipping move"
 fi

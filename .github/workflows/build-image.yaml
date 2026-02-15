@@ -76,6 +76,9 @@ jobs:
         run: |
           # Copy the project's config directory into the image so install.sh can access it
           sudo cp -r config /mnt/rpi/ || true
+          # Ensure Raspberry Pi firmware config is in the correct location
+          sudo mkdir -p /mnt/rpi/boot/firmware
+          sudo cp config/config.txt /mnt/rpi/boot/firmware/config.txt || true
           # Ensure the runner's hostname resolves inside the chroot to avoid sudo warnings
           HOSTNAME=$(hostname)
           sudo mkdir -p /mnt/rpi/etc
