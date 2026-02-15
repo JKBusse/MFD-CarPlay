@@ -33,6 +33,7 @@ jobs:
             wget -O raspios.img.xz -L https://downloads.raspberrypi.org/raspios_full_arm64_latest
             xz -d raspios.img.xz
             echo "IMG_NAME=MFD-CarPlay0.9.${{ github.run_number }}.img" >> $GITHUB_ENV
+            mv raspios.img "$IMG_NAME"
 
       - name: Expand image size
         run: |
