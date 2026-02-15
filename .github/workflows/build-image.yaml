@@ -1,15 +1,16 @@
-name: Build Custom Raspberry Pi OS Image
+name: Build MFD CarPlay Image
 
 on:
   workflow_dispatch:
   push:
-    branches: [ livi ]
+    branches: [ lmaini ]
 
 jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      packages: write
 
     steps:
       - name: Checkout repository
@@ -31,7 +32,7 @@ jobs:
         run: |
             wget -O raspios.img.xz -L https://downloads.raspberrypi.org/raspios_full_arm64_latest
             xz -d raspios.img.xz
-            echo "IMG_NAME=raspios.img" >> $GITHUB_ENV
+            echo "IMG_NAME=MFD-CarPlay0.9.${{ github.run_number }}.img" >> $GITHUB_ENV
 
       - name: Expand image size
         run: |
@@ -53,7 +54,6 @@ jobs:
 
       - name: Mount Image
         run: |
-
           sudo mkdir -p /mnt/rpi
           sudo mount ${LOOPDEV}p2 /mnt/rpi
           sudo mount ${LOOPDEV}p1 /mnt/rpi/boot
@@ -101,5 +101,5 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: build-${{ github.run_number }}
-          name: MFD-CarPlay V1.0. ${{ github.run_number }}
+          name: MFD-CarPlay V0.9.${{ github.run_number }}
           files: "*.xz"
