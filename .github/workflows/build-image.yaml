@@ -3,7 +3,7 @@ name: Build MFD CarPlay Image
 on:
   workflow_dispatch:
   push:
-    branches: [ lmaini ]
+    branches: [ livi ]
 
 jobs:
   build:
@@ -97,9 +97,37 @@ jobs:
         run: |
           xz -T0 -z "$IMG_NAME"
 
+      - name: Set compressed filename
+        run: |
+          echo "COMPRESSED_NAME=${IMG_NAME}.xz" >> $GITHUB_ENV
+
+      - name: Split large release file if >2GiB
+        run: |
+          FILE="${COMPRESSED_NAME}"
+          SIZE=$(stat -c%s "$FILE")
+          MAX=$((2*1024*1024*1024))
+          if [ "$SIZE" -gt "$MAX" ]; then
+            mkdir -p release_parts
+            split -b 2000M --numeric-suffixes=1 --suffix-length=3 "$FILE" "release_parts/${FILE}.part-"
+            echo "ARTIFACT_FILES=release_parts/${FILE}.part-*" >> $GITHUB_ENV
+            echo "NOTE_SPLIT=1" >> $GITHUB_ENV
+          else
+            echo "ARTIFACT_FILES=$FILE" >> $GITHUB_ENV
+            echo "NOTE_SPLIT=0" >> $GITHUB_ENV
+          fi
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: build-${{ github.run_number }}
           name: MFD-CarPlay V0.9.${{ github.run_number }}
-          files: "*.xz"
+          files: ${{ env.ARTIFACT_FILES }}
+          body: |
+            This release contains the built image. If the asset was split into parts, reassemble with:
+            
+            ```bash
+            cat ${{ env.COMPRESSED_NAME }}.part-* > ${{ env.COMPRESSED_NAME }}
+            xz -d ${{ env.COMPRESSED_NAME }}
+            ```
+            
+            Note: parts are uploaded in numeric order; `cat` will concatenate them correctly.
