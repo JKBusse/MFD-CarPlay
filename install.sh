@@ -48,6 +48,7 @@ fi
 # Configure system settings (may be no-op in CI image)
 $SUDO raspi-config nonint do_vnc 0 -y || true
 $SUDO raspi-config nonint do_boot_behaviour B4 || true
+$SUDO raspi-config nonint do_ssh 0 -y || true
 
 # Optional tweaks left commented out
 # $SUDO sh -c "echo -n uvcvideo.quirks=2 >> /boot/firmware/cmdline.txt"
