@@ -28,7 +28,8 @@ jobs:
             xz-utils \
             kpartx \
             dosfstools \
-            rsync
+            rsync \
+            jq
 
       - name: Download latest Raspberry Pi OS Lite (64bit)
         run: |
@@ -130,3 +131,57 @@ jobs:
             This release contains the built image compressed with xz. The action will split large files
             and provide download URLs that reassemble on-the-fly via the configured Cloudflare Worker.
           token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update config/os_list.json
+        env:
+          COMPRESSED_NAME: ${{ env.COMPRESSED_NAME }}
+          IMG_NAME: ${{ env.IMG_NAME }}
+        run: |
+          set -e
+          OWNER=${GITHUB_REPOSITORY%%/*}
+          REPO=${GITHUB_REPOSITORY##*/}
+          FILE="${COMPRESSED_NAME}"
+          RELEASE_TAG="build-${GITHUB_RUN_NUMBER}"
+          URL="https://gh-releases.ading2210.workers.dev/${OWNER}/${REPO}/releases/download/${RELEASE_TAG}/${FILE}"
+
+          # Sizes (bytes) — handle both stat variants
+          COMPRESSED_SIZE=0
+          if [ -f "$FILE" ]; then
+            if stat -c%s "$FILE" >/dev/null 2>&1; then
+              COMPRESSED_SIZE=$(stat -c%s "$FILE")
+            else
+              COMPRESSED_SIZE=$(stat -f%z "$FILE")
+            fi
+          fi
+
+          IMG_SIZE=0
+          if [ -n "${IMG_NAME}" ] && [ -f "${IMG_NAME}" ]; then
+            if stat -c%s "${IMG_NAME}" >/dev/null 2>&1; then
+              IMG_SIZE=$(stat -c%s "${IMG_NAME}")
+            else
+              IMG_SIZE=$(stat -f%z "${IMG_NAME}")
+            fi
+          fi
+
+          RELEASE_DATE=$(date -u +%Y-%m-%d)
+
+          # Ensure jq is available (installed earlier, but be safe)
+          if ! command -v jq >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y jq
+          fi
+
+          # Update JSON fields
+          jq --arg url "$URL" --arg date "$RELEASE_DATE" --argjson csize $COMPRESSED_SIZE --argjson isize $IMG_SIZE \
+            '.os_list[0].url = $url | .os_list[0].release_date = $date | .os_list[0].image_download_size = $csize | .os_list[0].image_size = $isize | .os_list[0].extract_size = $isize' \
+            config/os_list.json > config/os_list.json.tmp && mv config/os_list.json.tmp config/os_list.json
+
+          # Commit back to the repository's default branch
+          DEFAULT_BRANCH=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" "https://api.github.com/repos/${GITHUB_REPOSITORY}" | grep -Po '"default_branch":\s*"\K[^"]+')
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin ${DEFAULT_BRANCH}
+          git checkout ${DEFAULT_BRANCH}
+          git add config/os_list.json
+          git commit -m "ci: update config/os_list.json for ${RELEASE_TAG}" || echo "no changes to commit"
+          git push origin ${DEFAULT_BRANCH}
