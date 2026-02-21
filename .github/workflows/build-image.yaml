@@ -125,7 +125,7 @@ jobs:
         with:
           files: ${{ env.COMPRESSED_NAME }}
           tag_name: build-${{ github.run_number }}
-          name: MFD-CarPlay ${{ replace(github.ref, 'refs/tags/', '') }}
+          name: MFD-CarPlay ${{ github.ref_name }}
           body: |
             This release contains the built image compressed with xz. The action will split large files
             and provide download URLs that reassemble on-the-fly via the configured Cloudflare Worker.
