@@ -37,12 +37,12 @@ fi
 mkdir -p /home/pi/Downloads
 cd /home/pi/Downloads || true
 # try a canonical raw.githubusercontent URL for the setup script; tolerate failure
-curl -fLO https://raw.githubusercontent.com/f-io/LIVI/main/scripts/install/pi/setup-pi.sh || true
-if [ -f setup-pi.sh ]; then
-	chmod +x setup-pi.sh || true
-	./setup-pi.sh || echo "setup-pi.sh exited with non-zero status"
+$SUDO curl -fLO https://raw.githubusercontent.com/f-io/LIVI/refs/heads/main/scripts/install/pi/install.sh || true
+if [ -f install.sh ]; then
+	chmod +x install.sh || true
+	$SUDO ./install.sh || echo "install.sh exited with non-zero status"
 else
-	echo "Notice: setup-pi.sh not found, skipping CarPlay setup"
+	echo "Notice: install.sh not found, skipping CarPlay setup"
 fi
 
 # Configure system settings (may be no-op in CI image)
