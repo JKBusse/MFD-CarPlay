@@ -21,35 +21,63 @@ The goal of this project is to bring modern smartphone integration (Apple CarPla
 
 ## Requirements
 
-- Raspberry Pi (Model 3 or newer recommended)
+- Raspberry Pi (Model 4 or newer)
 - Raspberry Pi MFD HAT
 - VW Radio Navigation System MFD (1999 model)
-- Dependencies (listed below)
 
 ## Installation
 
-1. **Prepare the Raspberry Pi:**
-   - Install the required OS on the Raspberry Pi.
-   - Make sure the Raspberry Pi can communicate with the MFD system.
+1. **Download the Raspberry Pi Imager:**
+   - Download and Install the Raspberry Pi Imager on your Computer.
+   ```
+   https://www.raspberrypi.com/software/
+   ```
 
-2. **Install the Software:**
-   - Clone this repository to your Raspberry Pi:
-     ```bash
-     git clone https://github.com/JKBusse/MFD-CarPlay.git
+2. **Add the MFD CarPlay Repository:**
+   - Click on Settings:
+   ![alt text](assets/images/install1.jpg)
+
+   - Add this URL:
+   ![alt text](assets/images/install2.jpg)
+
      ```
-
-3. **Run the Installation Script:**
-   - Execute the installation script:
-     ```bash
-     cd MFD-CarPlay
-     ./install.sh
+     https://github.com/JKBusse/MFD-CarPlay/raw/refs/heads/livi/config/os_list.json
      ```
+      And click save and restart
 
-4. **Connect the Hardware:**
-   - Connect the Raspberry Pi to the VW MFD system using the appropriate cables.
+3. **Select your Raspberry Pi model:**
+   ![alt text](assets/images/install3.png)
 
-5. **Start the Software:**
-   - Run the CarPlay software and check the connection.
+4. **Select the MFD CarPlay Image:**
+   ![](assets/images/install4.png)
+
+5. **Select your SD Card:**
+   ![alt text](assets/images/install5.png)
+
+6. **Made the image customisation:**
+   - Set the Hostname:
+      ![alt text](assets/images/install6.png)
+   
+   - Select your location:
+      ![alt text](assets/images/install7.png)
+
+   - Set the User to pi (IMPORTANT!):
+      ![alt text](assets/images/install8.png)
+
+   - Set your WIFI Connection:
+      ![alt text](assets/images/install9.png)
+
+   - Setup SSH:
+      ![alt text](assets/images/install10.png)
+
+7. **Burn the Image:**
+   - Now burn the image to your SD Card:
+      ![alt text](assets/images/install11.png)
+      ![](assets/images/install12.png)
+
+8. **Done**:
+Now put the SD Card in your Raspberry Pi an connect the HAT to the MFD.
+If you power on your Raspberry Pi you should see a Picture on the MFD Screen. 
 
 ## Troubleshooting
 
