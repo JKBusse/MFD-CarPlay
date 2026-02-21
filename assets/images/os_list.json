@@ -3,7 +3,7 @@
     {
       "name": "MFD CarPlay",
       "description": "MFD CarPlay is a Raspbian based image for use with the MFD CarPlay HAT+",
-      "url": "https://gh-releases.ading2210.workers.dev/JKBusse/MFD-CarPlay/releases/download/build-18/MFD-CarPlay0.9.18.img.xz",
+      "url": "https://gh-releases.ading2210.workers.dev/JKBusse/MFD-CarPlay/releases/download/build-19/MFD-CarPlay0.9.19.img.xz",
       "icon": "https://example.com/icon.png",
       "release_date": "2026-02-01",
       "kernel": "5.15",
