@@ -1,9 +1,11 @@
 name: Build MFD CarPlay Image
 
 on:
-  workflow_dispatch:
   push:
-    branches: [ livi ]
+    # Trigger only when a version tag is pushed, e.g. V0.9.20 or v0.9.20
+    tags:
+      - 'V*'
+      - 'v*'
 
 jobs:
   build:
@@ -32,7 +34,14 @@ jobs:
         run: |
             wget -O raspios.img.xz -L https://downloads.raspberrypi.org/raspios_full_arm64_latest
             xz -d raspios.img.xz
-            IMG_NAME="MFD-CarPlay0.9.${{ github.run_number }}.img"
+            # Determine version from pushed tag (strip leading V/v). Fallback to run number.
+            TAG=${GITHUB_REF#refs/tags/}
+            VERSION=${TAG#V}
+            VERSION=${VERSION#v}
+            if [ -z "$VERSION" ]; then
+              VERSION="0.9.$GITHUB_RUN_NUMBER"
+            fi
+            IMG_NAME="MFD-CarPlay${VERSION}.img"
             echo "IMG_NAME=$IMG_NAME" >> $GITHUB_ENV
             mv raspios.img "$IMG_NAME"
 
@@ -116,7 +125,7 @@ jobs:
         with:
           files: ${{ env.COMPRESSED_NAME }}
           tag_name: build-${{ github.run_number }}
-          name: MFD-CarPlay V0.9.${{ github.run_number }}
+          name: MFD-CarPlay ${{ replace(github.ref, 'refs/tags/', '') }}
           body: |
             This release contains the built image compressed with xz. The action will split large files
             and provide download URLs that reassemble on-the-fly via the configured Cloudflare Worker.
