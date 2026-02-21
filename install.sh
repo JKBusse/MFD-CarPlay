@@ -40,7 +40,7 @@ cd /home/pi/Downloads || true
 $SUDO curl -fLO https://raw.githubusercontent.com/f-io/LIVI/refs/heads/main/scripts/install/pi/install.sh || true
 if [ -f install.sh ]; then
 	chmod +x install.sh || true
-	$SUDO ./install.sh || echo "install.sh exited with non-zero status"
+	sudo -u pi ./install.sh || echo "install.sh exited with non-zero status"
 else
 	echo "Notice: install.sh not found, skipping CarPlay setup"
 fi
