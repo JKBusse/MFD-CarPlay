@@ -72,18 +72,22 @@ jobs:
           sudo cp install.sh /mnt/rpi/install.sh
           sudo chmod +x /mnt/rpi/install.sh
 
-      - name: Copy repository config into image and fix hostname
+      - name: Copy firmware config correctly
         run: |
-          # Copy the project's config directory into the image so install.sh can access it
-          sudo cp -r config /mnt/rpi/ || true
-          # Ensure Raspberry Pi firmware config is in the correct location (both possible places)
-          sudo cp config/config.txt /mnt/rpi/boot/config.txt || true
+          # Sicherstellen, dass beide Orte identisch sind
           sudo mkdir -p /mnt/rpi/boot/firmware
-          sudo cp config/config.txt /mnt/rpi/boot/firmware/config.txt || true
-          # Ensure the runner's hostname resolves inside the chroot to avoid sudo warnings
-          HOSTNAME=$(hostname)
-          sudo mkdir -p /mnt/rpi/etc
-          sudo sh -c "echo '127.0.1.1 $HOSTNAME' >> /mnt/rpi/etc/hosts" || true
+
+          # config.txt auf die echte Boot-Partition (FAT)
+          sudo cp config/config.txt /mnt/rpi/boot/config.txt
+
+          # UND in das firmware-Verzeichnis im RootFS
+          sudo cp config/config.txt /mnt/rpi/boot/firmware/config.txt
+
+          # Optional: prüfen was wirklich existiert
+          echo "=== BOOT CONTENT ==="
+          ls -la /mnt/rpi/boot
+          echo "=== FIRMWARE CONTENT ==="
+          ls -la /mnt/rpi/boot/firmware
 
       - name: Execute install.sh inside image
         run: |
