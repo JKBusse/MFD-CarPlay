@@ -59,12 +59,21 @@ fi
 # LIVI CarPlay Installer (hardened)
 # ====================================
 
-USER_HOME="${HOME:-/home/pi}"
+echo "→ Creating LIVI target directory: $APPIMAGE_DIR"
+# Prefer installing for the 'pi' user when available; fallback to $HOME or /home/pi
+if id -u pi >/dev/null 2>&1; then
+	USER_HOME="/home/pi"
+else
+	USER_HOME="${HOME:-/home/pi}"
+fi
 APPIMAGE_PATH="$USER_HOME/LIVI/LIVI.AppImage"
 APPIMAGE_DIR="$(dirname "$APPIMAGE_PATH")"
 
 echo "→ Creating LIVI target directory: $APPIMAGE_DIR"
-mkdir -p "$APPIMAGE_DIR"
+run_privileged mkdir -p "$APPIMAGE_DIR"
+if id -u pi >/dev/null 2>&1; then
+	run_privileged chown -R pi:pi "$APPIMAGE_DIR" || true
+fi
 
 # Ensure required tools are installed
 echo "→ Checking for required tools: curl, xdg-user-dir"
@@ -105,7 +114,10 @@ ICON_URL="https://raw.githubusercontent.com/f-io/LIVI/main/assets/icons/linux/li
 ICON_DEST="$USER_HOME/.local/share/icons/livi.png"
 
 echo "→ Installing LIVI icon to $ICON_DEST"
-mkdir -p "$(dirname "$ICON_DEST")"
+run_privileged mkdir -p "$(dirname "$ICON_DEST")"
+if id -u pi >/dev/null 2>&1; then
+	run_privileged chown -R pi:pi "$(dirname "$ICON_DEST")" || true
+fi
 
 echo "   Downloading icon from $ICON_URL..."
 if curl -fL "$ICON_URL" -o "$ICON_DEST"; then
@@ -130,7 +142,10 @@ else
 		echo "   Download complete: $APPIMAGE_PATH"
 		# Mark AppImage as executable
 		echo "→ Setting executable flag"
-		chmod +x "$APPIMAGE_PATH"
+		run_privileged chmod +x "$APPIMAGE_PATH"
+		if id -u pi >/dev/null 2>&1; then
+			run_privileged chown pi:pi "$APPIMAGE_PATH" || true
+		fi
 	else
 		echo "⚠ Warning: Download failed, skipping LIVI AppImage"
 	fi
@@ -140,7 +155,10 @@ fi
 if [ -f "$APPIMAGE_PATH" ]; then
 	echo "→ Creating autostart entry"
 	AUTOSTART_DIR="$USER_HOME/.config/autostart"
-	mkdir -p "$AUTOSTART_DIR"
+	run_privileged mkdir -p "$AUTOSTART_DIR"
+	if id -u pi >/dev/null 2>&1; then
+		run_privileged chown -R pi:pi "$USER_HOME/.config" || true
+	fi
 
 	cat > "$AUTOSTART_DIR/LIVI.desktop" <<EOF
 [Desktop Entry]
@@ -156,13 +174,17 @@ EOF
 
 	# Create Desktop shortcut
 	echo "→ Creating desktop shortcut"
+	# Prefer the desktop directory for the chosen USER_HOME
 	if command -v xdg-user-dir >/dev/null 2>&1; then
-		DESKTOP_DIR="$(xdg-user-dir DESKTOP)"
+		DESKTOP_DIR="$(HOME="$USER_HOME" xdg-user-dir DESKTOP 2>/dev/null || true)"
 	else
 		DESKTOP_DIR="$USER_HOME/Desktop"
 	fi
 
-	mkdir -p "$DESKTOP_DIR"
+	run_privileged mkdir -p "$DESKTOP_DIR"
+	if id -u pi >/dev/null 2>&1; then
+		run_privileged chown -R pi:pi "$DESKTOP_DIR" || true
+	fi
 	cat > "$DESKTOP_DIR/LIVI.desktop" <<EOF
 [Desktop Entry]
 Type=Application
@@ -175,8 +197,14 @@ Categories=AudioVideo;
 StartupNotify=false
 EOF
 
-	chmod +x "$DESKTOP_DIR/LIVI.desktop"
+	run_privileged chmod +x "$DESKTOP_DIR/LIVI.desktop"
+	if id -u pi >/dev/null 2>&1; then
+		run_privileged chown pi:pi "$DESKTOP_DIR/LIVI.desktop" || true
+	fi
 	echo "   Desktop shortcut at $DESKTOP_DIR/LIVI.desktop"
+	if id -u pi >/dev/null 2>&1; then
+		run_privileged chown pi:pi "$AUTOSTART_DIR/LIVI.desktop" || true
+	fi
 	echo "✅ LIVI installation complete!"
 else
 	echo "⚠ LIVI AppImage not available, skipping autostart and desktop entries"
