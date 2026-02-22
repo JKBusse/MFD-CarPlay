@@ -147,6 +147,7 @@ jobs:
           URL="https://gh-releases.ading2210.workers.dev/${OWNER}/${REPO}/releases/download/${RELEASE_TAG}/${FILE}"
 
           # Determine image size
+
           COMPRESSED_SIZE=0
           if [ -f "$FILE" ]; then
             if stat -c%s "$FILE" >/dev/null 2>&1; then
@@ -155,6 +156,8 @@ jobs:
               COMPRESSED_SIZE=$(stat -f%z "$FILE")
             fi
           fi
+          # Auf Vielfaches von 512 Bytes runden
+          COMPRESSED_SIZE_ALIGNED=$(( (COMPRESSED_SIZE + 511) / 512 * 512 ))
 
           RELEASE_DATE=$(date -u +%Y-%m-%d)
 
@@ -165,7 +168,7 @@ jobs:
           fi
 
           # Read local config/os_list.json and update fields in-memory
-          UPDATED_JSON=$(jq --arg url "$URL" --arg date "$RELEASE_DATE" --argjson csize $COMPRESSED_SIZE \
+          UPDATED_JSON=$(jq --arg url "$URL" --arg date "$RELEASE_DATE" --argjson csize $COMPRESSED_SIZE_ALIGNED \
             '.os_list[0].url = $url | .os_list[0].release_date = $date | .os_list[0].image_download_size = $csize | .os_list[0].image_size = $csize | .os_list[0].extract_size = $csize' config/os_list.json)
 
           # Make a markdown body that includes the JSON as a code block

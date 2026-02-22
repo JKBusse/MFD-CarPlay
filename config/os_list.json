@@ -8,7 +8,7 @@
     "release_date": "2026-02-22",
     "kernel": "5.15",
     "supported_models": ["pi4", "pi5"],
-    "image_download_size": 3385723788,
+    "image_download_size": 5120000,
     "image_size": 512,
     "extract_size": 512,
     "init_format": "cloudinit-rpi"
