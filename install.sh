@@ -55,6 +55,30 @@ else
 	echo "Warning: config/config.txt not found, skipping move"
 fi
 
+# Helper: Prüfe, ob wir im chroot ohne systemd laufen
+is_chroot_no_systemd() {
+    # systemd läuft nur, wenn PID 1 systemd ist
+    [ "$(ps -p 1 -o comm=)" != "systemd" ]
+}
+
+# Wrapper für systemctl/loginctl: nur ausführen, wenn systemd läuft
+safe_systemctl() {
+    if is_chroot_no_systemd; then
+        echo "⚠ Running in chroot, skipping: systemctl $*"
+        return 0
+    else
+        run_privileged systemctl "$@"
+    fi
+}
+safe_loginctl() {
+    if is_chroot_no_systemd; then
+        echo "⚠ Running in chroot, skipping: loginctl $*"
+        return 0
+    else
+        run_privileged loginctl "$@"
+    fi
+}
+
 # ====================================
 # LIVI CarPlay Installer (hardened)
 # ====================================
@@ -225,14 +249,14 @@ $SUDO raspi-config nonint do_ssh 0 -y || true
 # =============================
 
 # Schritt 1: Standardziel auf Konsole setzen
-run_privileged systemctl set-default multi-user.target
+safe_systemctl set-default multi-user.target
 
 # Schritt 2: Display-Manager deaktivieren (lightdm)
-run_privileged systemctl disable lightdm || true
+safe_systemctl disable lightdm || true
 
 # Schritt 3: User-Linger für pi aktivieren
 if id -u pi >/dev/null 2>&1; then
-    run_privileged loginctl enable-linger pi
+    safe_loginctl enable-linger pi
 fi
 
 # Schritt 4: kiosk.service aus config/ für pi an die richtige Stelle kopieren
@@ -248,6 +272,10 @@ if id -u pi >/dev/null 2>&1; then
     run_privileged sed -i "s|ExecStartPost=.*|ExecStartPost=$APPIMAGE_PATH|" "$KIOSK_SERVICE"
 
     # Schritt 5: Service aktivieren
-    sudo -u pi XDG_RUNTIME_DIR="/run/user/$(id -u pi)" systemctl --user daemon-reload
-    sudo -u pi XDG_RUNTIME_DIR="/run/user/$(id -u pi)" systemctl --user enable kiosk.service
+    if is_chroot_no_systemd; then
+        echo "⚠ Running in chroot, skipping: systemctl --user daemon-reload/enable kiosk.service"
+    else
+        sudo -u pi XDG_RUNTIME_DIR="/run/user/$(id -u pi)" systemctl --user daemon-reload
+        sudo -u pi XDG_RUNTIME_DIR="/run/user/$(id -u pi)" systemctl --user enable kiosk.service
+    fi
 fi
