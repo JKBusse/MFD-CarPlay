@@ -113,75 +113,65 @@ jobs:
           sudo umount /mnt/rpi
           sudo losetup -d $LOOPDEV
 
-      - name: Compress image
-        run: |
-          xz -T0 -z "$IMG_NAME"
-
-      - name: Set compressed filename
-        run: |
-          echo "COMPRESSED_NAME=${IMG_NAME}.xz" >> $GITHUB_ENV
-
       - name: Create Large Release (supports >2GB)
         uses: ading2210/gh-large-releases@v1
         with:
-          files: ${{ env.COMPRESSED_NAME }}
+          files: ${{ env.IMG_NAME }}
           tag_name: build-${{ github.run_number }}
           name: MFD-CarPlay ${{ github.ref_name }}
           body: |
-            This release contains the built image compressed with xz. The action will split large files
+            This release contains the built image (uploaded uncompressed). The action will split large files
             and provide download URLs that reassemble on-the-fly via the configured Cloudflare Worker.
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Update config/os_list.json
+      - name: Add config/os_list.json to release description (no commit)
         env:
-          COMPRESSED_NAME: ${{ env.COMPRESSED_NAME }}
           IMG_NAME: ${{ env.IMG_NAME }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          set -e
+          set -euo pipefail
           OWNER=${GITHUB_REPOSITORY%%/*}
           REPO=${GITHUB_REPOSITORY##*/}
-          FILE="${COMPRESSED_NAME}"
           RELEASE_TAG="build-${GITHUB_RUN_NUMBER}"
+          FILE="${IMG_NAME}"
+
+          # Construct public download URL served by the large release worker
           URL="https://gh-releases.ading2210.workers.dev/${OWNER}/${REPO}/releases/download/${RELEASE_TAG}/${FILE}"
 
-          # Sizes (bytes) — handle both stat variants
-          COMPRESSED_SIZE=0
+          # Determine image size
+          IMG_SIZE=0
           if [ -f "$FILE" ]; then
             if stat -c%s "$FILE" >/dev/null 2>&1; then
-              COMPRESSED_SIZE=$(stat -c%s "$FILE")
+              IMG_SIZE=$(stat -c%s "$FILE")
             else
-              COMPRESSED_SIZE=$(stat -f%z "$FILE")
-            fi
-          fi
-
-          IMG_SIZE=0
-          if [ -n "${IMG_NAME}" ] && [ -f "${IMG_NAME}" ]; then
-            if stat -c%s "${IMG_NAME}" >/dev/null 2>&1; then
-              IMG_SIZE=$(stat -c%s "${IMG_NAME}")
-            else
-              IMG_SIZE=$(stat -f%z "${IMG_NAME}")
+              IMG_SIZE=$(stat -f%z "$FILE")
             fi
           fi
 
           RELEASE_DATE=$(date -u +%Y-%m-%d)
 
-          # Ensure jq is available (installed earlier, but be safe)
+          # Ensure jq is available
           if ! command -v jq >/dev/null 2>&1; then
             sudo apt-get update
             sudo apt-get install -y jq
           fi
 
-          # Update JSON fields
-          jq --arg url "$URL" --arg date "$RELEASE_DATE" --argjson csize $COMPRESSED_SIZE --argjson isize $IMG_SIZE \
-            '.os_list[0].url = $url | .os_list[0].release_date = $date | .os_list[0].image_download_size = $csize | .os_list[0].image_size = $isize | .os_list[0].extract_size = $isize' \
-            config/os_list.json > config/os_list.json.tmp && mv config/os_list.json.tmp config/os_list.json
+          # Read local config/os_list.json and update fields in-memory
+          UPDATED_JSON=$(jq --arg url "$URL" --arg date "$RELEASE_DATE" --argjson isize $IMG_SIZE \
+            '.os_list[0].url = $url | .os_list[0].release_date = $date | .os_list[0].image_download_size = $isize | .os_list[0].image_size = $isize | .os_list[0].extract_size = $isize' config/os_list.json)
 
-          # Commit back to the repository's default branch
-          DEFAULT_BRANCH=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" "https://api.github.com/repos/${GITHUB_REPOSITORY}" | grep -Po '"default_branch":\s*"\K[^"]+')
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git fetch origin ${DEFAULT_BRANCH}
-          git checkout ${DEFAULT_BRANCH}
-          git add config/os_list.json
-          git commit -m "ci: update config/os_list.json for ${RELEASE_TAG}" || echo "no changes to commit"
-          git push origin ${DEFAULT_BRANCH}
+          # Make a markdown body that includes the JSON as a code block
+          BODY_CONTENT="### os_list.json\n\n\`\`\`json\n${UPDATED_JSON}\n\`\`\`"
+
+          # Get release id
+          RELEASE_ID=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" "https://api.github.com/repos/${OWNER}/${REPO}/releases/tags/${RELEASE_TAG}" | jq -r .id)
+
+          if [ "$RELEASE_ID" = "null" ] || [ -z "$RELEASE_ID" ]; then
+            echo "Release for tag ${RELEASE_TAG} not found; aborting update."
+            exit 1
+          fi
+
+          # Patch the release body
+          PAYLOAD=$(jq -n --arg body "$BODY_CONTENT" '{body: $body}')
+          curl -s -X PATCH -H "Authorization: token ${GITHUB_TOKEN}" -H "Content-Type: application/json" \
+            -d "$PAYLOAD" "https://api.github.com/repos/${OWNER}/${REPO}/releases/${RELEASE_ID}"

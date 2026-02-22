@@ -13,6 +13,23 @@ else
 	SUDO=""
 fi
 
+# Helper to check if we have privilege escalation
+have_privileges() {
+	[ -n "$SUDO" ] || [ "$(id -u)" -eq 0 ]
+}
+
+# Helper to run a command with sudo if available, or fail gracefully
+run_privileged() {
+	if [ -n "$SUDO" ]; then
+		$SUDO "$@"
+	elif [ "$(id -u)" -eq 0 ]; then
+		"$@"
+	else
+		echo "⚠ Skipping privileged command (no sudo/root): $*" >&2
+		return 0  # Non-fatal; continue installation
+	fi
+}
+
 # Ensure hostname resolves to avoid "sudo: unable to resolve host" warnings
 HOSTNAME=$(hostname 2>/dev/null || true)
 if [ -n "$HOSTNAME" ]; then
@@ -38,41 +55,131 @@ else
 	echo "Warning: config/config.txt not found, skipping move"
 fi
 
-# Build touch calibration tool (best-effort; don't fail whole script if missing)
-mkdir -p /home/pi/Desktop
-cd /home/pi/Desktop || exit 0
-if [ ! -d xlibinput_calibrator ]; then
-	git clone https://github.com/kreijack/xlibinput_calibrator.git || true
-fi
-if [ -d xlibinput_calibrator/src ]; then
-	cd xlibinput_calibrator/src/ || true
-	make || true
-fi
+# ====================================
+# LIVI CarPlay Installer (hardened)
+# ====================================
 
-# Download and run CarPlay setup script if available (best-effort)
-mkdir -p /home/pi/Downloads
-cd /home/pi/Downloads || true
-# try a canonical raw.githubusercontent URL for the setup script; tolerate failure
-$SUDO curl -fLO https://raw.githubusercontent.com/f-io/LIVI/refs/heads/main/scripts/install/pi/install.sh || true
-if [ -f install.sh ]; then
-	chmod +x install.sh || true
-	# Try to run the downloaded installer as user 'pi' when possible.
-	# Prefer working sudo; if sudo is unavailable, try su (if root) or run directly.
-	if command -v sudo >/dev/null 2>&1 && sudo -n true >/dev/null 2>&1; then
-		sudo -u pi ./install.sh || echo "install.sh exited with non-zero status"
-	elif [ "$(id -u)" -eq 0 ]; then
-		# We're root in chroot/CI: try su to pi if that user exists, else run as root
-		if id -u pi >/dev/null 2>&1; then
-			su - pi -c "$(pwd)/install.sh" || echo "install.sh exited with non-zero status"
+USER_HOME="${HOME:-/home/pi}"
+APPIMAGE_PATH="$USER_HOME/LIVI/LIVI.AppImage"
+APPIMAGE_DIR="$(dirname "$APPIMAGE_PATH")"
+
+echo "→ Creating LIVI target directory: $APPIMAGE_DIR"
+mkdir -p "$APPIMAGE_DIR"
+
+# Ensure required tools are installed
+echo "→ Checking for required tools: curl, xdg-user-dir"
+for tool in curl xdg-user-dir; do
+	if ! command -v "$tool" >/dev/null 2>&1; then
+		echo "   $tool not found"
+		if have_privileges; then
+			echo "   Installing…"
+			if [ "$tool" = "xdg-user-dir" ]; then
+				run_privileged apt-get update
+				run_privileged apt-get --yes install xdg-user-dirs
+			else
+				run_privileged apt-get update
+				run_privileged apt-get --yes install "$tool"
+			fi
 		else
-			./install.sh || echo "install.sh exited with non-zero status"
+			echo "   ⚠ Cannot install $tool without sudo/root; skipping"
 		fi
 	else
-		# Non-root and no working sudo: try to run the script directly (best-effort)
-		./install.sh || echo "install.sh exited with non-zero status (no sudo)"
+		echo "   $tool found"
 	fi
+done
+
+# Create udev rule for Carlinkit dongle (only if we have privileges)
+echo "→ Writing udev rule for Carlinkit"
+UDEV_FILE="/etc/udev/rules.d/52-carplay.rules"
+if have_privileges; then
+	echo 'SUBSYSTEM=="usb", ATTR{idVendor}=="1314", ATTR{idProduct}=="152*", MODE="0660", GROUP="plugdev"' | run_privileged tee "$UDEV_FILE" >/dev/null
+	echo "   Reloading udev rules"
+	run_privileged udevadm control --reload-rules
+	run_privileged udevadm trigger
 else
-	echo "Notice: install.sh not found, skipping CarPlay setup"
+	echo "   ⚠ Skipping udev rule install (requires sudo/root)"
+fi
+
+# ICON INSTALLATION
+ICON_URL="https://raw.githubusercontent.com/f-io/LIVI/main/assets/icons/linux/livi.png"
+ICON_DEST="$USER_HOME/.local/share/icons/livi.png"
+
+echo "→ Installing LIVI icon to $ICON_DEST"
+mkdir -p "$(dirname "$ICON_DEST")"
+
+echo "   Downloading icon from $ICON_URL..."
+if curl -fL "$ICON_URL" -o "$ICON_DEST"; then
+	echo "   LIVI icon downloaded and installed successfully."
+else
+	echo "   Failed to download icon from $ICON_URL. Skipping icon install."
+	ICON_DEST=""
+fi
+
+# Fetch latest ARM64 AppImage from GitHub
+echo "→ Fetching latest LIVI release"
+latest_url=$(curl -s https://api.github.com/repos/f-io/LIVI/releases/latest \
+	| grep "browser_download_url" \
+	| grep "arm64.AppImage" \
+	| cut -d '"' -f 4)
+
+if [ -z "$latest_url" ]; then
+	echo "⚠ Warning: Could not find ARM64 AppImage URL, skipping LIVI AppImage download"
+else
+	echo "   Download URL: $latest_url"
+	if curl -L "$latest_url" --output "$APPIMAGE_PATH"; then
+		echo "   Download complete: $APPIMAGE_PATH"
+		# Mark AppImage as executable
+		echo "→ Setting executable flag"
+		chmod +x "$APPIMAGE_PATH"
+	else
+		echo "⚠ Warning: Download failed, skipping LIVI AppImage"
+	fi
+fi
+
+# Create per-user autostart entry
+if [ -f "$APPIMAGE_PATH" ]; then
+	echo "→ Creating autostart entry"
+	AUTOSTART_DIR="$USER_HOME/.config/autostart"
+	mkdir -p "$AUTOSTART_DIR"
+
+	cat > "$AUTOSTART_DIR/LIVI.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Name=LIVI
+Exec=$APPIMAGE_PATH
+Icon=${ICON_DEST:-livi}
+Terminal=false
+X-GNOME-Autostart-enabled=true
+Categories=AudioVideo;
+EOF
+	echo "   Autostart entry at $AUTOSTART_DIR/LIVI.desktop"
+
+	# Create Desktop shortcut
+	echo "→ Creating desktop shortcut"
+	if command -v xdg-user-dir >/dev/null 2>&1; then
+		DESKTOP_DIR="$(xdg-user-dir DESKTOP)"
+	else
+		DESKTOP_DIR="$USER_HOME/Desktop"
+	fi
+
+	mkdir -p "$DESKTOP_DIR"
+	cat > "$DESKTOP_DIR/LIVI.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Name=LIVI
+Comment=Launch LIVI AppImage
+Exec=$APPIMAGE_PATH
+Icon=${ICON_DEST:-livi}
+Terminal=false
+Categories=AudioVideo;
+StartupNotify=false
+EOF
+
+	chmod +x "$DESKTOP_DIR/LIVI.desktop"
+	echo "   Desktop shortcut at $DESKTOP_DIR/LIVI.desktop"
+	echo "✅ LIVI installation complete!"
+else
+	echo "⚠ LIVI AppImage not available, skipping autostart and desktop entries"
 fi
 
 # Configure system settings (may be no-op in CI image)
