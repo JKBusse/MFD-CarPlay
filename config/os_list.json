@@ -9,8 +9,8 @@
     "kernel": "5.15",
     "supported_models": ["pi4", "pi5"],
     "image_download_size": 3385723788,
-    "image_size": 3385723788,
-    "extract_size": 3385723788,
+    "image_size": 512,
+    "extract_size": 512,
     "init_format": "cloudinit-rpi"
     }
   ]
