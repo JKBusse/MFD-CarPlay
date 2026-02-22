@@ -1,0 +1,13 @@
+[Unit]
+Description=Wayland Kiosk Session
+After=graphical-session.target
+Wants=graphical-session.target
+
+[Service]
+Environment=XDG_SESSION_TYPE=wayland
+ExecStart=/usr/bin/labwc -C /dev/null
+ExecStartPost=/home/pi/LIVI/LIVI.AppImage
+Restart=always
+
+[Install]
+WantedBy=default.target

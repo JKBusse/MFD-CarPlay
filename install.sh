@@ -219,3 +219,35 @@ $SUDO raspi-config nonint do_ssh 0 -y || true
 # $SUDO sh -c "echo -n uvcvideo.quirks=2 >> /boot/firmware/cmdline.txt"
 # sleep 5
 # $SUDO reboot
+
+# =============================
+# KIOSK-MODUS EINRICHTEN
+# =============================
+
+# Schritt 1: Standardziel auf Konsole setzen
+run_privileged systemctl set-default multi-user.target
+
+# Schritt 2: Display-Manager deaktivieren (lightdm)
+run_privileged systemctl disable lightdm || true
+
+# Schritt 3: User-Linger für pi aktivieren
+if id -u pi >/dev/null 2>&1; then
+    run_privileged loginctl enable-linger pi
+fi
+
+# Schritt 4: kiosk.service aus config/ für pi an die richtige Stelle kopieren
+if id -u pi >/dev/null 2>&1; then
+    PI_HOME="/home/pi"
+    KIOSK_USER_DIR="$PI_HOME/.config/systemd/user"
+    KIOSK_SERVICE="$KIOSK_USER_DIR/kiosk.service"
+    run_privileged mkdir -p "$KIOSK_USER_DIR"
+    # Service-Datei aus config kopieren
+    run_privileged cp config/kiosk.service "$KIOSK_SERVICE"
+    run_privileged chown pi:pi "$KIOSK_SERVICE" || true
+    # Optional: ExecStartPost auf LIVI.AppImage anpassen (nur falls nötig)
+    run_privileged sed -i "s|ExecStartPost=.*|ExecStartPost=$APPIMAGE_PATH|" "$KIOSK_SERVICE"
+
+    # Schritt 5: Service aktivieren
+    sudo -u pi XDG_RUNTIME_DIR="/run/user/$(id -u pi)" systemctl --user daemon-reload
+    sudo -u pi XDG_RUNTIME_DIR="/run/user/$(id -u pi)" systemctl --user enable kiosk.service
+fi
