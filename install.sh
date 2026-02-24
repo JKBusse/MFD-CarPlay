@@ -272,6 +272,7 @@ if id -u pi >/dev/null 2>&1; then
     run_privileged sed -i "s|ExecStartPost=.*|ExecStartPost=$APPIMAGE_PATH|" "$KIOSK_SERVICE"
 
     # Schritt 5: Service aktivieren
+
     safe_systemctl --user daemon-reload
     safe_systemctl --user enable kiosk.service
 fi
