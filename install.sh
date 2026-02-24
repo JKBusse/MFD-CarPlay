@@ -272,10 +272,12 @@ if id -u pi >/dev/null 2>&1; then
     run_privileged sed -i "s|ExecStartPost=.*|ExecStartPost=$APPIMAGE_PATH|" "$KIOSK_SERVICE"
 
     # Schritt 5: Service aktivieren
-    if is_chroot_no_systemd; then
-        echo "⚠ Running in chroot, skipping: systemctl --user daemon-reload/enable kiosk.service"
-    else
-        sudo -u pi XDG_RUNTIME_DIR="/run/user/$(id -u pi)" systemctl --user daemon-reload
-        sudo -u pi XDG_RUNTIME_DIR="/run/user/$(id -u pi)" systemctl --user enable kiosk.service
-    fi
+    safe_systemctl --user daemon-reload
+    safe_systemctl --user enable kiosk.service
+fi
+
+# Am Ende: Im chroot ohne systemd immer mit Exit-Code 0 beenden
+if is_chroot_no_systemd; then
+    echo "⚠ Running in chroot, forcing exit code 0 (systemd not available)"
+    exit 0
 fi
