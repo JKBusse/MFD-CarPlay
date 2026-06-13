@@ -2,7 +2,7 @@
 ![IMG_3974](https://github.com/user-attachments/assets/cc56ef14-f076-45bd-b7d5-588ebdd775c3)
 
 # MFD-CarPlay
-
+The CarPlay Part of this Project uses rhysmorgan134s react-carplay!
 This project enables the integration of Apple CarPlay into the VW Radio Navigation System MFD (1999 model) using a Raspberry Pi HAT and custom software.
 
 ## Overview
