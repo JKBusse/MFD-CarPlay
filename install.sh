@@ -1,6 +1,25 @@
 #!/bin/bash
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CONFIG_DIR="${SCRIPT_DIR}/config"
+
+# Feature flags (1=enabled, 0=disabled)
+FEATURE_DISABLE_VNC="${FEATURE_DISABLE_VNC:-1}"
+FEATURE_DISABLE_SSH="${FEATURE_DISABLE_SSH:-1}"
+FEATURE_BOOT_B4="${FEATURE_BOOT_B4:-1}"
+FEATURE_KIOSK_MODE="${FEATURE_KIOSK_MODE:-1}"
+FEATURE_CARLINKIT_UDEV="${FEATURE_CARLINKIT_UDEV:-1}"
+FEATURE_LIVI_AUTOSTART="${FEATURE_LIVI_AUTOSTART:-1}"
+FEATURE_APT_UPGRADE="${FEATURE_APT_UPGRADE:-1}"
+
+is_enabled() {
+	case "${1:-0}" in
+		1|true|TRUE|yes|YES|on|ON) return 0 ;;
+		*) return 1 ;;
+	esac
+}
+
 # If running as root inside chroot, avoid calling sudo repeatedly.
 if [ "$(id -u)" -ne 0 ]; then
 	# Prefer sudo, but fall back to no-sudo if sudo cannot escalate (e.g. nosuid or chroot CI)
@@ -43,16 +62,18 @@ fi
 
 # Update and install required packages
 $SUDO apt-get update -y
-$SUDO apt-get upgrade -y
-$SUDO apt-get install -y libxi-dev libx11-dev libxrandr-dev txt2man
+if is_enabled "$FEATURE_APT_UPGRADE"; then
+	$SUDO apt-get upgrade -y
+fi
+$SUDO apt-get install -y libxi-dev libx11-dev libxrandr-dev txt2man curl xdg-user-dirs
 
 # Move config if present (guard against missing file when run from CI)
-if [ -f config/config.txt ]; then
+if [ -f "$CONFIG_DIR/config.txt" ]; then
 	# Ensure target directory exists (some images mount boot at /boot, but not /boot/firmware)
 	$SUDO mkdir -p /boot/firmware
-	$SUDO cp config/config.txt /boot/firmware/config.txt
+	$SUDO cp "$CONFIG_DIR/config.txt" /boot/firmware/config.txt
 else
-	echo "Warning: config/config.txt not found, skipping move"
+	echo "Warning: ${CONFIG_DIR}/config.txt not found, skipping move"
 fi
 
 # Helper: Prüfe, ob wir im chroot ohne systemd laufen
@@ -83,7 +104,6 @@ safe_loginctl() {
 # LIVI CarPlay Installer (hardened)
 # ====================================
 
-echo "→ Creating LIVI target directory: $APPIMAGE_DIR"
 # Prefer installing for the 'pi' user when available; fallback to $HOME or /home/pi
 if id -u pi >/dev/null 2>&1; then
 	USER_HOME="/home/pi"
@@ -122,15 +142,19 @@ for tool in curl xdg-user-dir; do
 done
 
 # Create udev rule for Carlinkit dongle (only if we have privileges)
-echo "→ Writing udev rule for Carlinkit"
-UDEV_FILE="/etc/udev/rules.d/52-carplay.rules"
-if have_privileges; then
-	echo 'SUBSYSTEM=="usb", ATTR{idVendor}=="1314", ATTR{idProduct}=="152*", MODE="0660", GROUP="plugdev"' | run_privileged tee "$UDEV_FILE" >/dev/null
-	echo "   Reloading udev rules"
-	run_privileged udevadm control --reload-rules
-	run_privileged udevadm trigger
+if is_enabled "$FEATURE_CARLINKIT_UDEV"; then
+	echo "→ Writing udev rule for Carlinkit"
+	UDEV_FILE="/etc/udev/rules.d/52-carplay.rules"
+	if have_privileges; then
+		echo 'SUBSYSTEM=="usb", ATTR{idVendor}=="1314", ATTR{idProduct}=="152*", MODE="0660", GROUP="plugdev"' | run_privileged tee "$UDEV_FILE" >/dev/null
+		echo "   Reloading udev rules"
+		run_privileged udevadm control --reload-rules
+		run_privileged udevadm trigger
+	else
+		echo "   ⚠ Skipping udev rule install (requires sudo/root)"
+	fi
 else
-	echo "   ⚠ Skipping udev rule install (requires sudo/root)"
+	echo "→ Skipping Carlinkit udev rule (feature disabled)"
 fi
 
 # ICON INSTALLATION
@@ -176,7 +200,7 @@ else
 fi
 
 # Create per-user autostart entry
-if [ -f "$APPIMAGE_PATH" ]; then
+if [ -f "$APPIMAGE_PATH" ] && is_enabled "$FEATURE_LIVI_AUTOSTART"; then
 	echo "→ Creating autostart entry"
 	AUTOSTART_DIR="$USER_HOME/.config/autostart"
 	run_privileged mkdir -p "$AUTOSTART_DIR"
@@ -230,14 +254,22 @@ EOF
 		run_privileged chown pi:pi "$AUTOSTART_DIR/LIVI.desktop" || true
 	fi
 	echo "✅ LIVI installation complete!"
+elif [ -f "$APPIMAGE_PATH" ]; then
+	echo "→ LIVI AppImage present, but autostart/desktop setup is disabled"
 else
 	echo "⚠ LIVI AppImage not available, skipping autostart and desktop entries"
 fi
 
 # Configure system settings (may be no-op in CI image)
-$SUDO raspi-config nonint do_vnc 0 -y || true
-$SUDO raspi-config nonint do_boot_behaviour B4 || true
-$SUDO raspi-config nonint do_ssh 0 -y || true
+if is_enabled "$FEATURE_DISABLE_VNC"; then
+	$SUDO raspi-config nonint do_vnc 0 -y || true
+fi
+if is_enabled "$FEATURE_BOOT_B4"; then
+	$SUDO raspi-config nonint do_boot_behaviour B4 || true
+fi
+if is_enabled "$FEATURE_DISABLE_SSH"; then
+	$SUDO raspi-config nonint do_ssh 0 -y || true
+fi
 
 # Optional tweaks left commented out
 # $SUDO sh -c "echo -n uvcvideo.quirks=2 >> /boot/firmware/cmdline.txt"
@@ -248,33 +280,36 @@ $SUDO raspi-config nonint do_ssh 0 -y || true
 # KIOSK-MODUS EINRICHTEN
 # =============================
 
-# Schritt 1: Standardziel auf Konsole setzen
-safe_systemctl set-default multi-user.target
+if is_enabled "$FEATURE_KIOSK_MODE"; then
+	# Schritt 1: Standardziel auf Konsole setzen
+	safe_systemctl set-default multi-user.target
 
-# Schritt 2: Display-Manager deaktivieren (lightdm)
-safe_systemctl disable lightdm || true
+	# Schritt 2: Display-Manager deaktivieren (lightdm)
+	safe_systemctl disable lightdm || true
 
-# Schritt 3: User-Linger für pi aktivieren
-if id -u pi >/dev/null 2>&1; then
-    safe_loginctl enable-linger pi
-fi
+	# Schritt 3: User-Linger fuer pi aktivieren
+	if id -u pi >/dev/null 2>&1; then
+		safe_loginctl enable-linger pi
+	fi
 
-# Schritt 4: kiosk.service aus config/ für pi an die richtige Stelle kopieren
-if id -u pi >/dev/null 2>&1; then
-    PI_HOME="/home/pi"
-    KIOSK_USER_DIR="$PI_HOME/.config/systemd/user"
-    KIOSK_SERVICE="$KIOSK_USER_DIR/kiosk.service"
-    run_privileged mkdir -p "$KIOSK_USER_DIR"
-    # Service-Datei aus config kopieren
-    run_privileged cp config/kiosk.service "$KIOSK_SERVICE"
-    run_privileged chown pi:pi "$KIOSK_SERVICE" || true
-    # Optional: ExecStartPost auf LIVI.AppImage anpassen (nur falls nötig)
-    run_privileged sed -i "s|ExecStartPost=.*|ExecStartPost=$APPIMAGE_PATH|" "$KIOSK_SERVICE"
-
-    # Schritt 5: Service aktivieren
-
-    safe_systemctl --user daemon-reload
-    safe_systemctl --user enable kiosk.service
+	# Schritt 4: kiosk.service aus config/ fuer pi an die richtige Stelle kopieren
+	if id -u pi >/dev/null 2>&1; then
+		PI_HOME="/home/pi"
+		KIOSK_USER_DIR="$PI_HOME/.config/systemd/user"
+		KIOSK_SERVICE="$KIOSK_USER_DIR/kiosk.service"
+		run_privileged mkdir -p "$KIOSK_USER_DIR"
+		if [ -f "$CONFIG_DIR/kiosk.service" ]; then
+			# Service-Datei aus config kopieren
+			run_privileged cp "$CONFIG_DIR/kiosk.service" "$KIOSK_SERVICE"
+			run_privileged chown pi:pi "$KIOSK_SERVICE" || true
+			# Optional: ExecStartPost auf LIVI.AppImage anpassen (nur falls noetig)
+			run_privileged sed -i "s|ExecStartPost=.*|ExecStartPost=$APPIMAGE_PATH|" "$KIOSK_SERVICE"
+		else
+			echo "⚠ ${CONFIG_DIR}/kiosk.service not found, skipping kiosk service setup"
+		fi
+	fi
+else
+	echo "→ Kiosk mode is disabled by feature flag"
 fi
 
 # Am Ende: Im chroot ohne systemd immer mit Exit-Code 0 beenden
