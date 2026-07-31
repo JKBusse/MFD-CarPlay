@@ -1,21 +1,20 @@
 {
   "os_list": [
 {
-  "name": "MFD CarPlay",
-  "description": "MFD CarPlay is a Raspbian based image for use with the MFD CarPlay HAT+",
-  "url": "https://gh-releases.ading2210.workers.dev/JKBusse/MFD-CarPlay/releases/download/build-31/MFD-CarPlay0.9.27.img.xz",
-  "icon": "https://raw.githubusercontent.com/JKBusse/MFD-CarPlay/refs/heads/livi/assets/images/logo.svg",
-  "release_date": "2026-02-24",
-  "kernel": "5.15",
-  "supported_models": [
-  "pi4",
-  "pi5"
-  ],
-  "image_download_size": 3391752192,
-  "image_size": 3391752192,
-  "extract_size": 3391752192,
-  "init_format": "cloudinit-rpi"
-  }
-  ]
-  }
-
+"name": "MFD CarPlay",
+"description": "MFD CarPlay is a Raspbian based image for use with the MFD CarPlay HAT+",
+"url": "https://gh-releases.ading2210.workers.dev/JKBusse/MFD-CarPlay/releases/download/build-32/MFD-CarPlay0.9.28.img.xz",
+"icon": "https://raw.githubusercontent.com/JKBusse/MFD-CarPlay/refs/heads/livi/assets/images/logo.svg",
+"release_date": "2026-07-31",
+"kernel": "5.15",
+"supported_models": [
+"pi4",
+"pi5"
+],
+"image_download_size": 2516076032,
+"image_size": 2516076032,
+"extract_size": 2516076032,
+"init_format": "cloudinit-rpi"
+}
+]
+}
