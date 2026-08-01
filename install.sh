@@ -66,7 +66,13 @@ $SUDO apt-get update -y
 if is_enabled "$FEATURE_APT_UPGRADE"; then
 	$SUDO apt-get upgrade -y
 fi
-$SUDO apt-get install -y libxi-dev libx11-dev libxrandr-dev txt2man curl xdg-user-dirs
+
+# LIVI core runtime deps + build/runtime utilities used by this installer.
+$SUDO apt-get install -y \
+	libxi-dev libx11-dev libxrandr-dev txt2man curl xdg-user-dirs \
+	bluez libspa-0.2-bluetooth hostapd dnsmasq-base iw rfkill \
+	python3-pip pulseaudio-utils python3-dbus python3-gi python3-smbus2 \
+	avahi-daemon libva2
 
 # Move config if present (guard against missing file when run from CI)
 if [ -f "$CONFIG_DIR/config.txt" ]; then
@@ -166,7 +172,7 @@ StandardOutput=append:$APPIMAGE_DIR/LIVI.log
 StandardError=inherit
 Environment=ELECTRON_OZONE_PLATFORM_HINT=wayland
 Environment=LIVI_KIOSK=1
-ExecStart=$CAGE_BIN -s -- $APPIMAGE_PATH
+ExecStart=$CAGE_BIN -s -- $APPIMAGE_PATH --disable-features=Vulkan
 ExecStopPost=+$SYSTEMCTL_BIN --no-block start getty@tty1.service
 Restart=no
 

@@ -173,7 +173,7 @@ jobs:
           # Construct public download URL served by the large release worker
           URL="https://gh-releases.ading2210.workers.dev/${OWNER}/${REPO}/releases/download/${RELEASE_TAG}/${FILE}"
 
-          # Determine image size
+          # Determine download and extract sizes
 
           COMPRESSED_SIZE=0
           if [ -f "$FILE" ]; then
@@ -183,8 +183,17 @@ jobs:
               COMPRESSED_SIZE=$(stat -f%z "$FILE")
             fi
           fi
-          # Auf Vielfaches von 512 Bytes runden
+
+          # Read uncompressed image size from xz metadata
+          EXTRACT_SIZE=0
+          if [ -f "$FILE" ]; then
+            EXTRACT_SIZE=$(xz --robot --list "$FILE" 2>/dev/null | awk -F '\t' '/^totals/{print $5; exit}')
+            EXTRACT_SIZE=${EXTRACT_SIZE:-0}
+          fi
+
+          # Round to multiples of 512 bytes
           COMPRESSED_SIZE_ALIGNED=$(( (COMPRESSED_SIZE + 511) / 512 * 512 ))
+          EXTRACT_SIZE_ALIGNED=$(( (EXTRACT_SIZE + 511) / 512 * 512 ))
 
           RELEASE_DATE=$(date -u +%Y-%m-%d)
 
@@ -195,8 +204,8 @@ jobs:
           fi
 
           # Read local config/os_list.json and update fields in-memory
-          UPDATED_JSON=$(jq --arg url "$URL" --arg date "$RELEASE_DATE" --argjson csize $COMPRESSED_SIZE_ALIGNED \
-            '.os_list[0].url = $url | .os_list[0].release_date = $date | .os_list[0].image_download_size = $csize | .os_list[0].image_size = $csize | .os_list[0].extract_size = $csize' config/os_list.json)
+          UPDATED_JSON=$(jq --arg url "$URL" --arg date "$RELEASE_DATE" --argjson dsize $COMPRESSED_SIZE_ALIGNED --argjson xsize $EXTRACT_SIZE_ALIGNED \
+            '.os_list[0].url = $url | .os_list[0].release_date = $date | .os_list[0].image_download_size = $dsize | .os_list[0].image_size = $xsize | .os_list[0].extract_size = $xsize' config/os_list.json)
 
           # Persist updated os_list.json for commit/push
           UPDATED_FILE="$(mktemp)"

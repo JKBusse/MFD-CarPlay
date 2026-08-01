@@ -59,24 +59,26 @@ display_default_lcd=1
 dtoverlay=vc4-kms-dpi-generic
 dtparam=rgb666=1
 
-# Set horizontal timing parameters for 400x234 display
-dtparam=hactive=376  # Horizontal active pixels (400)
-dtparam=hsync-invert
-dtparam=hfp=16        # Horizontal front porch
-dtparam=hsync=32     # Horizontal sync pulse width
-dtparam=hbp=60       # Horizontal back porch
+# Video mode as dtparam timings: PAL (active)
+# Approximation of the proven overscan setup:
+# overscan_left=17, overscan_top=7, right/bottom=0
+dtparam=hactive=375
+dtparam=hfp=9
+dtparam=hsync=32
+dtparam=hbp=48
+dtparam=vactive=275
+dtparam=vfp=0
+dtparam=vsync=2
+dtparam=vbp=23
 
-# Set vertical timing parameters for 400x234 display
-dtparam=vactive=267  # Vertical active lines (234)
-dtparam=vsync-invert
-dtparam=vfp=20       # Vertical front porch
-dtparam=vsync=2      # Vertical sync pulse width
-dtparam=vbp=26       # Vertical back porch (calculated)
-
-# Set physical display size (in millimeters)
-dtparam=width-mm=102   # Physical width of the display
-dtparam=height-mm=75   # Physical height of the display
-
-
-# Set clock frequency (in Hz)
-dtparam=clock-frequency=8140000  # Adjusted for NTSC timing (8.05 MHz, vsync 59,7993Hz, hsync 15.787kHz)
+# Video mode as dtparam timings: NTSC (uncomment these and comment PAL values above)
+# Approximation of the proven overscan setup:
+# overscan_left=17, overscan_top=5, right/bottom=0
+#dtparam=hactive=375
+#dtparam=hfp=9
+#dtparam=hsync=32
+#dtparam=hbp=48
+#dtparam=vactive=239
+#dtparam=vfp=2
+#dtparam=vsync=2
+#dtparam=vbp=19

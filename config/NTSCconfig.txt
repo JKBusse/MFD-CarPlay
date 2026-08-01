@@ -1,82 +1,60 @@
-# For more options and information see
-# http://rptl.io/configtxt
-# Some settings may impact device functionality. See link above for details
-
-# Uncomment some or all of these to enable the optional hardware interfaces
-#dtparam=i2c_arm=on
-#dtparam=i2s=on
-#dtparam=spi=on
-
 # Enable audio (loads snd_bcm2835)
 dtparam=audio=on
+boot_delay=0
 
-# Additional overlays and parameters are documented
-# /boot/firmware/overlays/README
+arm_freq=2000
+gpu_freq=750
+over_voltage=6
+disable_splash=1
 
-# Automatically load overlays for detected cameras
-camera_auto_detect=1
+disable_poe_fan=1
 
-# Automatically load overlays for detected DSI displays
-display_auto_detect=1
+dtparam=i2c_arm=on
+dtparam=i2s=off
+dtparam=spi=off
 
-# Automatically load initramfs files, if found
-auto_initramfs=1
-
-# Enable full KMS with framebuffer support for Wayland and apps that need /dev/fb0
-dtoverlay=vc4-fkms-v3d
-max_framebuffers=2
-
-# Don't have the firmware create an initial video= setting in cmdline.txt.
-# Use the kernel's default instead.
-#disable_fw_kms_setup=0
-
-# Run in 64-bit mode
-arm_64bit=1
-
-# Run as fast as firmware / board allows
-arm_boost=1
-
-[cm4]
-# Enable host mode on the 2711 built-in XHCI USB controller.
-# This line should be removed if the legacy DWC2 controller is required
-# (e.g. for USB device mode) or if USB support is not required.
-otg_mode=1
-
-[cm5]
-dtoverlay=dwc2,dr_mode=host
-
-[all]
-
-###########
-# MFD-HAT #
-###########
-
-# Set default-framebuffer to DPI/VGA666
+dtoverlay=vga666
+dpi_output_format=0x15
 enable_dpi_lcd=1
 display_default_lcd=1
+dpi_group=2
+dpi_mode=87
 
-# Enable DPI display using the vc4-kms-dpi-generic overlay
-dtoverlay=vc4-kms-dpi-generic
-dtparam=rgb666=1
+# Video mode as dtparam timings: PAL (uncomment these and comment NTSC values below)
+# Approximation of the proven overscan setup:
+# overscan_left=17, overscan_top=7, right/bottom=0
+#dtparam=hactive=375
+#dtparam=hfp=9
+#dtparam=hsync=32
+#dtparam=hbp=48
+#dtparam=vactive=275
+#dtparam=vfp=0
+#dtparam=vsync=2
+#dtparam=vbp=23
 
-# Set horizontal timing parameters for 400x234 display
-dtparam=hactive=376  # Horizontal active pixels (400)
-dtparam=hsync-invert
-dtparam=hfp=16        # Horizontal front porch
-dtparam=hsync=32     # Horizontal sync pulse width
-dtparam=hbp=60       # Horizontal back porch
+# Video mode as dtparam timings: NTSC (active)
+# Approximation of the proven overscan setup:
+# overscan_left=17, overscan_top=5, right/bottom=0
+dtparam=hactive=375
+dtparam=hfp=9
+dtparam=hsync=32
+dtparam=hbp=48
+dtparam=vactive=239
+dtparam=vfp=2
+dtparam=vsync=2
+dtparam=vbp=19
 
-# Set vertical timing parameters for 400x234 display
-dtparam=vactive=267  # Vertical active lines (234)
-dtparam=vsync-invert
-dtparam=vfp=20       # Vertical front porch
-dtparam=vsync=2      # Vertical sync pulse width
-dtparam=vbp=26       # Vertical back porch (calculated)
+#disable_fw_kms_setup=0
+disable_overscan=0
+[pi4]
+# Enable DRM VC4 V3D driver on top of the dispmanx display stack
+#dtoverlay=vc4-fkms-v3d
+#max_framebuffers=2
+disable_fw_kms_setup=1
+dtoverlay=vc4-kms-v3d,noaudio,nohdmi
+dtoverlay=vc4-kms-dpi-generic,hactive=320,hfp=19,hsync=43,hbp=36
+[all]
+intial_turbo=30
 
-# Set physical display size (in millimeters)
-dtparam=width-mm=144   # Physical width of the display
-dtparam=height-mm=78   # Physical height of the display
-
-
-# Set clock frequency (in Hz)
-dtparam=clock-frequency=8140000  # Adjusted for NTSC timing (8.05 MHz, vsync 59,7993Hz, hsync 15.787kHz)
+#start_x=0
+enable_uart=0
