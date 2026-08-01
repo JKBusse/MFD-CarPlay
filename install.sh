@@ -9,6 +9,7 @@ FEATURE_DISABLE_VNC="${FEATURE_DISABLE_VNC:-1}"
 FEATURE_DISABLE_SSH="${FEATURE_DISABLE_SSH:-1}"
 FEATURE_BOOT_B4="${FEATURE_BOOT_B4:-1}"
 FEATURE_KIOSK_MODE="${FEATURE_KIOSK_MODE:-1}"
+FEATURE_LIVI_NATIVE_KIOSK="${FEATURE_LIVI_NATIVE_KIOSK:-1}"
 FEATURE_CARLINKIT_UDEV="${FEATURE_CARLINKIT_UDEV:-1}"
 FEATURE_LIVI_AUTOSTART="${FEATURE_LIVI_AUTOSTART:-1}"
 FEATURE_APT_UPGRADE="${FEATURE_APT_UPGRADE:-1}"
@@ -100,6 +101,98 @@ safe_loginctl() {
     fi
 }
 
+enable_unit_offline() {
+	unit_name="$1"
+	target_name="$2"
+	target_dir="/etc/systemd/system/${target_name}.wants"
+	unit_src="/etc/systemd/system/${unit_name}"
+
+	if [ ! -f "$unit_src" ]; then
+		echo "Warning: offline enable skipped, unit not found: $unit_src"
+		return 0
+	fi
+
+	run_privileged mkdir -p "$target_dir"
+	if [ ! -e "$target_dir/$unit_name" ]; then
+		run_privileged ln -s "$unit_src" "$target_dir/$unit_name"
+	fi
+}
+
+setup_livi_native_kiosk() {
+	echo "→ Setting up LIVI native kiosk (tty1 + cage)"
+
+	run_privileged apt-get install -y cage seatd wlr-randr pipewire pipewire-pulse wireplumber
+
+	if id -u pi >/dev/null 2>&1; then
+		run_privileged usermod -aG video,render,input,plugdev pi || true
+	fi
+
+	GETTY_DROPIN="/etc/systemd/system/getty@tty1.service.d/livi-autologin.conf"
+	KIOSK_UNIT="/etc/systemd/system/livi-kiosk.service"
+	KIOSK_PAM="/etc/pam.d/livi-kiosk"
+	AGETTY_BIN="$(command -v agetty || echo /sbin/agetty)"
+	CAGE_BIN="$(command -v cage || echo /usr/bin/cage)"
+	SYSTEMCTL_BIN="$(command -v systemctl || echo /usr/bin/systemctl)"
+
+	run_privileged mkdir -p "$(dirname "$GETTY_DROPIN")"
+	run_privileged tee "$GETTY_DROPIN" >/dev/null <<EOF
+[Service]
+ExecStart=
+ExecStart=-$AGETTY_BIN --autologin pi --noclear %I \$TERM
+EOF
+
+	run_privileged tee "$KIOSK_PAM" >/dev/null <<'EOF'
+auth      required  pam_permit.so
+@include  common-account
+@include  common-session
+EOF
+
+	run_privileged tee "$KIOSK_UNIT" >/dev/null <<EOF
+[Unit]
+Description=LIVI kiosk
+After=systemd-user-sessions.service seatd.service getty@tty1.service
+Conflicts=getty@tty1.service
+
+[Service]
+Type=simple
+User=pi
+PAMName=livi-kiosk
+WorkingDirectory=$USER_HOME
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+StandardInput=tty-fail
+StandardOutput=append:$APPIMAGE_DIR/LIVI.log
+StandardError=inherit
+Environment=ELECTRON_OZONE_PLATFORM_HINT=wayland
+Environment=LIVI_KIOSK=1
+ExecStart=$CAGE_BIN -s -- $APPIMAGE_PATH
+ExecStopPost=+$SYSTEMCTL_BIN --no-block start getty@tty1.service
+Restart=no
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+	if is_chroot_no_systemd; then
+		echo "→ No running systemd detected; enabling kiosk units offline"
+		enable_unit_offline "livi-kiosk.service" "multi-user.target"
+		if [ -f /lib/systemd/system/seatd.service ]; then
+			run_privileged mkdir -p /etc/systemd/system/multi-user.target.wants
+			if [ ! -e /etc/systemd/system/multi-user.target.wants/seatd.service ]; then
+				run_privileged ln -s /lib/systemd/system/seatd.service /etc/systemd/system/multi-user.target.wants/seatd.service
+			fi
+		fi
+		run_privileged ln -snf /lib/systemd/system/multi-user.target /etc/systemd/system/default.target
+	else
+		run_privileged systemctl daemon-reload
+		run_privileged systemctl enable --now seatd
+		run_privileged loginctl enable-linger pi || true
+		run_privileged systemctl set-default multi-user.target
+		run_privileged systemctl enable livi-kiosk.service
+	fi
+}
+
 # ====================================
 # LIVI CarPlay Installer (hardened)
 # ====================================
@@ -112,6 +205,9 @@ else
 fi
 APPIMAGE_PATH="$USER_HOME/LIVI/LIVI.AppImage"
 APPIMAGE_DIR="$(dirname "$APPIMAGE_PATH")"
+LIVI_USERDATA_DIR="$USER_HOME/.config/LIVI"
+LIVI_CONFIG_PATH="$LIVI_USERDATA_DIR/config.json"
+CUSTOM_LIVI_CONFIG="$CONFIG_DIR/livi-config.json"
 
 echo "→ Creating LIVI target directory: $APPIMAGE_DIR"
 run_privileged mkdir -p "$APPIMAGE_DIR"
@@ -199,8 +295,22 @@ else
 	fi
 fi
 
-# Create per-user autostart entry
-if [ -f "$APPIMAGE_PATH" ] && is_enabled "$FEATURE_LIVI_AUTOSTART"; then
+# Optional: preinstall custom LIVI config into Electron userData
+if [ -f "$CUSTOM_LIVI_CONFIG" ]; then
+	echo "→ Installing custom LIVI config from $CUSTOM_LIVI_CONFIG"
+	run_privileged mkdir -p "$LIVI_USERDATA_DIR"
+	run_privileged cp "$CUSTOM_LIVI_CONFIG" "$LIVI_CONFIG_PATH"
+	run_privileged chmod 0644 "$LIVI_CONFIG_PATH"
+	if id -u pi >/dev/null 2>&1; then
+		run_privileged chown -R pi:pi "$LIVI_USERDATA_DIR" || true
+	fi
+	echo "   Installed custom config at $LIVI_CONFIG_PATH"
+else
+	echo "→ No custom LIVI config found at $CUSTOM_LIVI_CONFIG (using LIVI defaults)"
+fi
+
+# Create per-user autostart entry (desktop fallback)
+if [ -f "$APPIMAGE_PATH" ] && is_enabled "$FEATURE_LIVI_AUTOSTART" && ! is_enabled "$FEATURE_LIVI_NATIVE_KIOSK"; then
 	echo "→ Creating autostart entry"
 	AUTOSTART_DIR="$USER_HOME/.config/autostart"
 	run_privileged mkdir -p "$AUTOSTART_DIR"
@@ -254,10 +364,16 @@ EOF
 		run_privileged chown pi:pi "$AUTOSTART_DIR/LIVI.desktop" || true
 	fi
 	echo "✅ LIVI installation complete!"
+elif [ -f "$APPIMAGE_PATH" ] && is_enabled "$FEATURE_LIVI_NATIVE_KIOSK"; then
+	echo "→ Skipping desktop autostart because native LIVI kiosk is enabled"
 elif [ -f "$APPIMAGE_PATH" ]; then
 	echo "→ LIVI AppImage present, but autostart/desktop setup is disabled"
 else
 	echo "⚠ LIVI AppImage not available, skipping autostart and desktop entries"
+fi
+
+if [ -f "$APPIMAGE_PATH" ] && is_enabled "$FEATURE_LIVI_NATIVE_KIOSK"; then
+	setup_livi_native_kiosk
 fi
 
 # Configure system settings (may be no-op in CI image)
@@ -281,33 +397,8 @@ fi
 # =============================
 
 if is_enabled "$FEATURE_KIOSK_MODE"; then
-	# Schritt 1: Standardziel auf Konsole setzen
-	safe_systemctl set-default multi-user.target
-
-	# Schritt 2: Display-Manager deaktivieren (lightdm)
-	safe_systemctl disable lightdm || true
-
-	# Schritt 3: User-Linger fuer pi aktivieren
-	if id -u pi >/dev/null 2>&1; then
-		safe_loginctl enable-linger pi
-	fi
-
-	# Schritt 4: kiosk.service aus config/ fuer pi an die richtige Stelle kopieren
-	if id -u pi >/dev/null 2>&1; then
-		PI_HOME="/home/pi"
-		KIOSK_USER_DIR="$PI_HOME/.config/systemd/user"
-		KIOSK_SERVICE="$KIOSK_USER_DIR/kiosk.service"
-		run_privileged mkdir -p "$KIOSK_USER_DIR"
-		if [ -f "$CONFIG_DIR/kiosk.service" ]; then
-			# Service-Datei aus config kopieren
-			run_privileged cp "$CONFIG_DIR/kiosk.service" "$KIOSK_SERVICE"
-			run_privileged chown pi:pi "$KIOSK_SERVICE" || true
-			# Optional: ExecStartPost auf LIVI.AppImage anpassen (nur falls noetig)
-			run_privileged sed -i "s|ExecStartPost=.*|ExecStartPost=$APPIMAGE_PATH|" "$KIOSK_SERVICE"
-		else
-			echo "⚠ ${CONFIG_DIR}/kiosk.service not found, skipping kiosk service setup"
-		fi
-	fi
+	echo "→ Legacy FEATURE_KIOSK_MODE is deprecated."
+	echo "→ Use FEATURE_LIVI_NATIVE_KIOSK=1 (default) for LIVI's built-in kiosk service."
 else
 	echo "→ Kiosk mode is disabled by feature flag"
 fi
