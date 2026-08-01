@@ -26,6 +26,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Install dependencies
         run: |
@@ -156,10 +158,11 @@ jobs:
             and provide download URLs that reassemble on-the-fly via the configured Cloudflare Worker.
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Add config/os_list.json to release description (no commit)
+      - name: Update and push config/os_list.json
         env:
           COMPRESSED_NAME: ${{ steps.compressed.outputs.name }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OS_LIST_BRANCH: livi
         run: |
           set -euo pipefail
           OWNER=${GITHUB_REPOSITORY%%/*}
@@ -195,6 +198,10 @@ jobs:
           UPDATED_JSON=$(jq --arg url "$URL" --arg date "$RELEASE_DATE" --argjson csize $COMPRESSED_SIZE_ALIGNED \
             '.os_list[0].url = $url | .os_list[0].release_date = $date | .os_list[0].image_download_size = $csize | .os_list[0].image_size = $csize | .os_list[0].extract_size = $csize' config/os_list.json)
 
+          # Persist updated os_list.json for commit/push
+          UPDATED_FILE="$(mktemp)"
+          printf '%s\n' "$UPDATED_JSON" > "$UPDATED_FILE"
+
           # Make a markdown body that includes the JSON as a code block
           BODY_CONTENT="### os_list.json\n\n\`\`\`json\n${UPDATED_JSON}\n\`\`\`"
 
@@ -210,3 +217,25 @@ jobs:
           PAYLOAD=$(jq -n --arg body "$BODY_CONTENT" '{body: $body}')
           curl -s -X PATCH -H "Authorization: token ${GITHUB_TOKEN}" -H "Content-Type: application/json" \
             -d "$PAYLOAD" "https://api.github.com/repos/${OWNER}/${REPO}/releases/${RELEASE_ID}"
+
+          # Commit updated os_list.json to branch
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git fetch origin --prune
+          if git ls-remote --exit-code --heads origin "$OS_LIST_BRANCH" >/dev/null 2>&1; then
+            git checkout -B "$OS_LIST_BRANCH" "origin/$OS_LIST_BRANCH"
+          else
+            DEFAULT_BRANCH="$(git remote show origin | sed -n '/HEAD branch/s/.*: //p')"
+            git checkout -B "$OS_LIST_BRANCH" "origin/$DEFAULT_BRANCH"
+          fi
+
+          cp "$UPDATED_FILE" config/os_list.json
+
+          if git diff --quiet -- config/os_list.json; then
+            echo "config/os_list.json unchanged; nothing to commit"
+          else
+            git add config/os_list.json
+            git commit -m "chore: update os_list.json for ${RELEASE_TAG}"
+            git push origin "$OS_LIST_BRANCH"
+          fi
