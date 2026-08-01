@@ -185,9 +185,13 @@ EOF
 		fi
 		run_privileged ln -snf /lib/systemd/system/multi-user.target /etc/systemd/system/default.target
 	else
+		# In some chrooted/image-build environments PID1 appears as systemd, but
+		# starting units is still impossible. Enable units without --now to avoid failures.
 		run_privileged systemctl daemon-reload
-		run_privileged systemctl enable --now seatd
-		run_privileged loginctl enable-linger pi || true
+		run_privileged systemctl enable seatd
+		if [ -d /run/systemd/system ]; then
+			run_privileged loginctl enable-linger pi || true
+		fi
 		run_privileged systemctl set-default multi-user.target
 		run_privileged systemctl enable livi-kiosk.service
 	fi
