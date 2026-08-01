@@ -89,6 +89,22 @@ If you power on your Raspberry Pi you should see a Picture on the MFD Screen.
 
 If you'd like to contribute to this project, feel free to fork the repository and submit pull requests. Any feedback or improvements are welcome!
 
+## Support and Maintenance Policy
+
+- **Issue reporting:** Please report bugs and feature requests via GitHub Issues in this repository.
+- **Update cadence:**
+   - Critical fixes (build breaks, boot failures, major regressions): as soon as possible.
+   - Routine improvements and compatibility updates: batched and released regularly.
+- **Release and metadata maintenance:** `config/os_list.json` is updated automatically by CI after successful image builds.
+- **Officially tested models:** Raspberry Pi 4 and Raspberry Pi 5.
+- **Best-effort scope:** Community support is best effort; hardware-specific edge cases may need logs and reproduction steps.
+
 ## License
 
-This project is open source and available under the MIT License.
+This project repository is licensed under the MIT License.
+
+- Full license text: [LICENSE](LICENSE)
+- Credits: [CREDITS.md](CREDITS.md)
+- Third-party notices: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
+
+Note: The generated image contains third-party software (including LIVI and Debian/Raspberry Pi OS packages) with their own licenses.

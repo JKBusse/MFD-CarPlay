@@ -56,7 +56,8 @@ enable_dpi_lcd=1
 display_default_lcd=1
 
 # Enable DPI display using the vc4-kms-dpi-generic overlay
-dtoverlay=vc4-kms-dpi-generic
+#dtoverlay=vc4-kms-dpi-generic
+dtoverlay=vc4-fkms-v3d
 dtparam=rgb666=1
 
 # Video mode as dtparam timings: PAL (active)
