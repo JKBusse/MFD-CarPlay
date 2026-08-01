@@ -139,6 +139,12 @@ jobs:
 
       - name: Compress image
         run: |
+          if stat -c%s "$IMG_NAME" >/dev/null 2>&1; then
+            RAW_SIZE=$(stat -c%s "$IMG_NAME")
+          else
+            RAW_SIZE=$(stat -f%z "$IMG_NAME")
+          fi
+          echo "UNCOMPRESSED_SIZE=$RAW_SIZE" >> $GITHUB_ENV
           xz -T0 -z "$IMG_NAME"
 
       - name: Set compressed filename
@@ -163,6 +169,8 @@ jobs:
           COMPRESSED_NAME: ${{ steps.compressed.outputs.name }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OS_LIST_BRANCH: livi
+          SOURCE_TAG: ${{ github.ref_name }}
+          UNCOMPRESSED_SIZE: ${{ env.UNCOMPRESSED_SIZE }}
         run: |
           set -euo pipefail
           OWNER=${GITHUB_REPOSITORY%%/*}
@@ -184,9 +192,10 @@ jobs:
             fi
           fi
 
-          # Read uncompressed image size from xz metadata
-          EXTRACT_SIZE=0
-          if [ -f "$FILE" ]; then
+          # Prefer exact uncompressed size from pre-compression step.
+          # Fallback to xz metadata if not available.
+          EXTRACT_SIZE=${UNCOMPRESSED_SIZE:-0}
+          if [ "$EXTRACT_SIZE" -eq 0 ] && [ -f "$FILE" ]; then
             EXTRACT_SIZE=$(xz --robot --list "$FILE" 2>/dev/null | awk -F '\t' '/^totals/{print $5; exit}')
             EXTRACT_SIZE=${EXTRACT_SIZE:-0}
           fi
@@ -211,8 +220,18 @@ jobs:
           UPDATED_FILE="$(mktemp)"
           printf '%s\n' "$UPDATED_JSON" > "$UPDATED_FILE"
 
-          # Make a markdown body that includes the JSON as a code block
-          BODY_CONTENT="### os_list.json\n\n\`\`\`json\n${UPDATED_JSON}\n\`\`\`"
+          # Build release body from commits in this source tag range
+          PREV_TAG=$(git tag --sort=-creatordate | grep -E '^[Vv][0-9]' | grep -v -x "$SOURCE_TAG" | head -n1 || true)
+          if [ -n "${PREV_TAG:-}" ]; then
+            COMMITS=$(git log --pretty='- %s (%h)' "${PREV_TAG}..${SOURCE_TAG}" | head -n 50)
+          else
+            COMMITS=$(git log --pretty='- %s (%h)' -n 20)
+          fi
+          if [ -z "${COMMITS:-}" ]; then
+            COMMITS="- No commit metadata available."
+          fi
+
+          BODY_CONTENT=$(printf '## MFD-CarPlay %s\n\nBuilt image file: %s\n\n### Commit summary\n%s\n' "$SOURCE_TAG" "$FILE" "$COMMITS")
 
           # Get release id
           RELEASE_ID=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" "https://api.github.com/repos/${OWNER}/${REPO}/releases/tags/${RELEASE_TAG}" | jq -r .id)
