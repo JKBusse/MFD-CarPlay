@@ -13,6 +13,8 @@ FEATURE_LIVI_NATIVE_KIOSK="${FEATURE_LIVI_NATIVE_KIOSK:-1}"
 FEATURE_CARLINKIT_UDEV="${FEATURE_CARLINKIT_UDEV:-1}"
 FEATURE_LIVI_AUTOSTART="${FEATURE_LIVI_AUTOSTART:-1}"
 FEATURE_APT_UPGRADE="${FEATURE_APT_UPGRADE:-1}"
+FEATURE_QUIET_BOOT="${FEATURE_QUIET_BOOT:-1}"
+FEATURE_BOOT_SPLASH="${FEATURE_BOOT_SPLASH:-1}"
 
 is_enabled() {
 	case "${1:-0}" in
@@ -151,6 +153,90 @@ EOF
 	else
 		run_privileged systemctl daemon-reload
 		run_privileged systemctl enable mfd-firstboot-reboot.service
+	fi
+}
+
+setup_quiet_boot_cmdline() {
+	echo "→ Applying quiet boot kernel cmdline"
+
+	CMDLINE_FILE="/boot/firmware/cmdline.txt"
+	if [ ! -f "$CMDLINE_FILE" ] && [ -f "/boot/cmdline.txt" ]; then
+		CMDLINE_FILE="/boot/cmdline.txt"
+	fi
+
+	if [ ! -f "$CMDLINE_FILE" ]; then
+		echo "⚠ cmdline.txt not found, skipping quiet boot setup"
+		return 0
+	fi
+
+	CURRENT_CMDLINE="$(cat "$CMDLINE_FILE")"
+	for token in quiet splash loglevel=3 rd.udev.log_level=3 vt.global_cursor_default=0 logo.nologo plymouth.ignore-serial-consoles systemd.show_status=false; do
+		case " $CURRENT_CMDLINE " in
+			*" $token "*) ;;
+			*) CURRENT_CMDLINE="$CURRENT_CMDLINE $token" ;;
+		esac
+	done
+
+	# Remove serial console to suppress most early boot text.
+	CURRENT_CMDLINE="$(printf '%s\n' "$CURRENT_CMDLINE" | sed -E 's/console=serial0,[0-9]+//g; s/[[:space:]]+/ /g; s/^ //; s/ $//')"
+
+	run_privileged tee "$CMDLINE_FILE" >/dev/null <<EOF
+$CURRENT_CMDLINE
+EOF
+}
+
+setup_plymouth_splash() {
+	echo "→ Installing Plymouth splash theme"
+
+	if ! have_privileges; then
+		echo "⚠ Skipping splash setup (requires sudo/root)"
+		return 0
+	fi
+
+	run_privileged apt-get install -y plymouth plymouth-themes
+
+	THEME_NAME="mfd-carplay"
+	THEME_DIR="/usr/share/plymouth/themes/${THEME_NAME}"
+	SOURCE_IMAGE="$SCRIPT_DIR/assets/images/install10.png"
+
+	if [ ! -f "$SOURCE_IMAGE" ]; then
+		SOURCE_IMAGE="$SCRIPT_DIR/assets/images/install3.png"
+	fi
+
+	if [ ! -f "$SOURCE_IMAGE" ]; then
+		echo "⚠ No splash image found in assets/images, skipping Plymouth theme"
+		return 0
+	fi
+
+	run_privileged mkdir -p "$THEME_DIR"
+	run_privileged cp "$SOURCE_IMAGE" "$THEME_DIR/splash.png"
+
+	run_privileged tee "$THEME_DIR/${THEME_NAME}.plymouth" >/dev/null <<EOF
+[Plymouth Theme]
+Name=MFD CarPlay
+Description=MFD CarPlay boot splash
+ModuleName=script
+
+[script]
+ImageDir=$THEME_DIR
+ScriptFile=$THEME_DIR/${THEME_NAME}.script
+EOF
+
+	run_privileged tee "$THEME_DIR/${THEME_NAME}.script" >/dev/null <<'EOF'
+Window.SetBackgroundTopColor(0.0, 0.0, 0.0);
+Window.SetBackgroundBottomColor(0.0, 0.0, 0.0);
+
+logo = Image("splash.png");
+sprite = Sprite(logo);
+sprite.SetX((Window.GetWidth() - logo.GetWidth()) / 2);
+sprite.SetY((Window.GetHeight() - logo.GetHeight()) / 2);
+EOF
+
+	if command -v plymouth-set-default-theme >/dev/null 2>&1; then
+		run_privileged plymouth-set-default-theme "$THEME_NAME" -R || true
+	else
+		echo "⚠ plymouth-set-default-theme not found, trying update-initramfs directly"
+		run_privileged update-initramfs -u || true
 	fi
 }
 
@@ -417,6 +503,14 @@ if [ -f "$APPIMAGE_PATH" ] && is_enabled "$FEATURE_LIVI_NATIVE_KIOSK"; then
 fi
 
 setup_firstboot_cloudinit_reboot
+
+if is_enabled "$FEATURE_QUIET_BOOT"; then
+	setup_quiet_boot_cmdline
+fi
+
+if is_enabled "$FEATURE_BOOT_SPLASH"; then
+	setup_plymouth_splash
+fi
 
 # Configure system settings (may be no-op in CI image)
 if is_enabled "$FEATURE_DISABLE_VNC"; then
