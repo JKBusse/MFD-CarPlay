@@ -41,9 +41,9 @@ The goal of this project is to bring modern smartphone integration (Apple CarPla
    - Add this URL:
    ![alt text](assets/images/install2.jpg)
 
-     ```
+   ```
    https://github.com/JKBusse/MFD-CarPlay/raw/refs/heads/main/config/os_list.json
-     ```
+   ```
       And click save and restart
 
 3. **Select your Raspberry Pi model:**
