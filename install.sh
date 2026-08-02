@@ -15,6 +15,7 @@ FEATURE_LIVI_AUTOSTART="${FEATURE_LIVI_AUTOSTART:-1}"
 FEATURE_APT_UPGRADE="${FEATURE_APT_UPGRADE:-1}"
 FEATURE_QUIET_BOOT="${FEATURE_QUIET_BOOT:-1}"
 FEATURE_BOOT_SPLASH="${FEATURE_BOOT_SPLASH:-1}"
+FEATURE_OPTIMIZE_BOOT="${FEATURE_OPTIMIZE_BOOT:-1}"
 
 is_enabled() {
 	case "${1:-0}" in
@@ -142,7 +143,7 @@ ConditionPathExists=!${MARKER_FILE}
 
 [Service]
 Type=oneshot
-ExecStart=/bin/bash -lc 'touch ${MARKER_FILE}; systemctl --no-block reboot'
+ExecStart=/bin/bash -lc 'touch ${MARKER_FILE}; touch /etc/cloud/cloud-init.disabled; systemctl disable cloud-init.service cloud-config.service cloud-final.service cloud-init-local.service cloud-init-main.service >/dev/null 2>&1 || true; systemctl --no-block reboot'
 
 [Install]
 WantedBy=multi-user.target
@@ -154,6 +155,22 @@ EOF
 		run_privileged systemctl daemon-reload
 		run_privileged systemctl enable mfd-firstboot-reboot.service
 	fi
+}
+
+optimize_boot_services() {
+	echo "→ Applying boot-time service optimizations"
+
+	# This unit commonly adds several seconds while waiting for full network online.
+	run_privileged systemctl disable NetworkManager-wait-online.service >/dev/null 2>&1 || true
+	run_privileged systemctl mask NetworkManager-wait-online.service >/dev/null 2>&1 || true
+
+	# Printing stack is not needed for a kiosk image.
+	run_privileged systemctl disable cups.service cups.path cups.socket >/dev/null 2>&1 || true
+	run_privileged systemctl mask cups.service cups.path cups.socket >/dev/null 2>&1 || true
+
+	# Periodic ext4 scrub is not useful on this appliance-style SD image.
+	run_privileged systemctl disable e2scrub_reap.service e2scrub_all.timer >/dev/null 2>&1 || true
+	run_privileged systemctl mask e2scrub_reap.service >/dev/null 2>&1 || true
 }
 
 setup_quiet_boot_cmdline() {
@@ -510,6 +527,10 @@ fi
 
 if is_enabled "$FEATURE_BOOT_SPLASH"; then
 	setup_plymouth_splash
+fi
+
+if is_enabled "$FEATURE_OPTIMIZE_BOOT"; then
+	optimize_boot_services
 fi
 
 # Configure system settings (may be no-op in CI image)
