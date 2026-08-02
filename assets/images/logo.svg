@@ -1,0 +1,58 @@
+<svg width="900" height="420" viewBox="0 0 900 420" xmlns="http://www.w3.org/2000/svg">
+
+  <!-- Outer Frame -->
+  <rect x="50" y="40" width="800" height="340" rx="6" fill="#1E1E1E"/>
+
+  <!-- Screen Frame -->
+  <rect x="250" y="70" width="400" height="270" rx="4" fill="#111"/>
+
+  <!-- 4:3 Screen -->
+  <rect x="270" y="90" width="360" height="230" fill="#000"/>
+
+  <!-- Sidebar (links) -->
+  <rect x="270" y="90" width="50" height="230" fill="#1A1A1A"/>
+
+  <!-- Sidebar Indicators -->
+  <circle cx="295" cy="130" r="7" fill="#E10600"/>
+  <circle cx="295" cy="170" r="7" fill="#007AFF"/>
+  <circle cx="295" cy="210" r="7" fill="#34C759"/>
+
+  <!-- App Grid -->
+  <!-- 2 Reihen × 3 Spalten, proportional -->
+  <rect x="340" y="110" width="70" height="70" rx="14" fill="#007AFF"/>
+  <rect x="425" y="110" width="70" height="70" rx="14" fill="#34C759"/>
+  <rect x="510" y="110" width="70" height="70" rx="14" fill="#FF9F0A"/>
+
+  <rect x="340" y="190" width="70" height="70" rx="14" fill="#AF52DE"/>
+  <rect x="425" y="190" width="70" height="70" rx="14" fill="#FF375F"/>
+  <rect x="510" y="190" width="70" height="70" rx="14" fill="#5AC8FA"/>
+
+  <!-- Left Buttons (3 unten) -->
+  <rect x="80" y="230" width="110" height="38" fill="#2A2A2A"/>
+  <rect x="80" y="275" width="110" height="38" fill="#2A2A2A"/>
+  <rect x="80" y="320" width="110" height="38" fill="#2A2A2A"/>
+
+  <!-- Right Buttons (3 unten) -->
+  <rect x="710" y="230" width="110" height="38" fill="#2A2A2A"/>
+  <rect x="710" y="275" width="110" height="38" fill="#2A2A2A"/>
+  <rect x="710" y="320" width="110" height="38" fill="#2A2A2A"/>
+
+  <!-- Left Knob (unten) -->
+  <circle cx="135" cy="140" r="28" fill="#111" stroke="#E10600" stroke-width="5"/>
+  <circle cx="135" cy="140" r="6" fill="#E10600"/>
+
+  <!-- Right Knob (unten) -->
+  <circle cx="765" cy="140" r="28" fill="#111" stroke="#E10600" stroke-width="5"/>
+  <circle cx="765" cy="140" r="6" fill="#E10600"/>
+
+  <!-- Bottom Project Name -->
+  <text x="450" y="370"
+        font-family="Arial"
+        font-size="26"
+        fill="#ff0000"
+        text-anchor="middle"
+        letter-spacing="2">
+    MFD-CarPlay
+  </text>
+
+</svg>

@@ -1,4 +1,5 @@
 # MFD-CarPlay
+[![Build MFD CarPlay Image](https://github.com/JKBusse/MFD-CarPlay/actions/workflows/build-image.yaml/badge.svg)](https://github.com/JKBusse/MFD-CarPlay/actions/workflows/build-image.yaml)
 ![IMG_3974](https://github.com/user-attachments/assets/cc56ef14-f076-45bd-b7d5-588ebdd775c3)
 
 # MFD-CarPlay
@@ -21,35 +22,68 @@ The goal of this project is to bring modern smartphone integration (Apple CarPla
 
 ## Requirements
 
-- Raspberry Pi (Model 3 or newer recommended)
+- Raspberry Pi (Model 4 or newer)
 - Raspberry Pi MFD HAT
 - VW Radio Navigation System MFD (1999 model)
-- Dependencies (listed below)
 
 ## Installation
 
-1. **Prepare the Raspberry Pi:**
-   - Install the required OS on the Raspberry Pi.
-   - Make sure the Raspberry Pi can communicate with the MFD system.
+1. **Download the Raspberry Pi Imager:**
+   - Download and Install the Raspberry Pi Imager on your Computer.
+   ```
+   https://www.raspberrypi.com/software/
+   ```
 
-2. **Install the Software:**
-   - Clone this repository to your Raspberry Pi:
-     ```bash
-     git clone https://github.com/JKBusse/MFD-CarPlay.git
+2. **Add the MFD CarPlay Repository:**
+   - Click on Settings:
+   ![alt text](assets/images/install1.jpg)
+
+   - Add this URL:
+   ![alt text](assets/images/install2.jpg)
+
      ```
-
-3. **Run the Installation Script:**
-   - Execute the installation script:
-     ```bash
-     cd MFD-CarPlay
-     ./install.sh
+   https://github.com/JKBusse/MFD-CarPlay/raw/refs/heads/main/config/os_list.json
      ```
+      And click save and restart
 
-4. **Connect the Hardware:**
-   - Connect the Raspberry Pi to the VW MFD system using the appropriate cables.
+3. **Select your Raspberry Pi model:**
+   ![alt text](assets/images/install3.png)
 
-5. **Start the Software:**
-   - Run the CarPlay software and check the connection.
+4. **Select the MFD CarPlay Image:**
+   ![](assets/images/install4.png)
+
+5. **Select your SD Card:**
+   ![alt text](assets/images/install5.png)
+
+6. **Customize the image:**
+   - Set the Hostname:
+      ![alt text](assets/images/install6.png)
+   
+   - Select your location:
+      ![alt text](assets/images/install7.png)
+
+   - Set the User to pi (IMPORTANT!):
+      ![alt text](assets/images/install8.png)
+
+   - Set your WIFI Connection:
+      ![alt text](assets/images/install9.png)
+
+   - Setup SSH:
+      ![alt text](assets/images/install10.png)
+
+7. **Burn the Image:**
+   - Now burn the image to your SD Card:
+      ![alt text](assets/images/install11.png)
+      ![](assets/images/install12.png)
+
+8. **Done**:
+Now put the SD Card in your Raspberry Pi and connect the HAT to the MFD.
+
+## Boot Behavior
+
+- The first start performs cloud-init provisioning.
+- Later boots use the optimized quiet-boot setup to reduce console output.
+- The image uses a splash screen on boot when Plymouth is available in the target image.
 
 ## Troubleshooting
 
@@ -60,6 +94,23 @@ The goal of this project is to bring modern smartphone integration (Apple CarPla
 
 If you'd like to contribute to this project, feel free to fork the repository and submit pull requests. Any feedback or improvements are welcome!
 
+## Support and Maintenance Policy
+
+- **Issue reporting:** Please report bugs and feature requests via GitHub Issues in this repository.
+- **Update cadence:**
+   - Critical fixes (build breaks, boot failures, major regressions): as soon as possible.
+   - Routine improvements and compatibility updates: batched and released regularly.
+- **Release and metadata maintenance:** `config/os_list.json` is updated automatically by CI after successful image builds.
+- **Officially tested models:** Raspberry Pi 4 and Raspberry Pi 5.
+- **Best-effort scope:** Community support is best effort; hardware-specific edge cases may need logs and reproduction steps.
+- **Boot troubleshooting:** If the first boot appears to pause after provisioning, wait for the automatic reboot once cloud-init finishes.
+
 ## License
 
-This project is open source and available under the MIT License.
+This project repository is licensed under the MIT License.
+
+- Full license text: [LICENSE](LICENSE)
+- Credits: [CREDITS.md](CREDITS.md)
+- Third-party notices: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
+
+Note: The generated image contains third-party software (including LIVI and Debian/Raspberry Pi OS packages) with their own licenses.

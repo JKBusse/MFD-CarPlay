@@ -1,0 +1,269 @@
+name: Build MFD CarPlay Image
+
+on:
+  push:
+    # Trigger only when a version tag is pushed, e.g. V0.9.20 or v0.9.20
+    tags:
+      - 'V*'
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    env:
+      FEATURE_DISABLE_VNC: "1"
+      FEATURE_DISABLE_SSH: "0"
+      FEATURE_BOOT_B4: "0"
+      FEATURE_KIOSK_MODE: "0"
+      FEATURE_LIVI_NATIVE_KIOSK: "1"
+      FEATURE_CARLINKIT_UDEV: "1"
+      FEATURE_LIVI_AUTOSTART: "0"
+      FEATURE_APT_UPGRADE: "0"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y \
+            qemu-user-static \
+            unzip \
+            wget \
+            xz-utils \
+            kpartx \
+            dosfstools \
+            rsync \
+            jq
+
+      - name: Download latest Raspberry Pi OS Lite (arm64)
+        run: |
+            wget -O raspios.img.xz -L https://downloads.raspberrypi.org/raspios_lite_arm64_latest
+            xz -d raspios.img.xz
+            # Determine version from pushed tag (strip leading V/v). Fallback to run number.
+            TAG=${GITHUB_REF#refs/tags/}
+            VERSION=${TAG#V}
+            VERSION=${VERSION#v}
+            if [ -z "$VERSION" ]; then
+              VERSION="0.9.$GITHUB_RUN_NUMBER"
+            fi
+            IMG_NAME="MFD-CarPlay${VERSION}.img"
+            echo "IMG_NAME=$IMG_NAME" >> $GITHUB_ENV
+            mv raspios.img "$IMG_NAME"
+
+      - name: Expand image size
+        run: |
+            # Image um 4GB vergrößern
+            truncate -s +4G "$IMG_NAME"
+
+            # Loop Device neu setzen
+            sudo losetup -d $(losetup -j "$IMG_NAME" | cut -d: -f1) 2>/dev/null || true
+            sudo losetup -Pf "$IMG_NAME"
+            LOOPDEV=$(losetup -j "$IMG_NAME" | cut -d: -f1)
+            echo "LOOPDEV=$LOOPDEV" >> $GITHUB_ENV
+
+            # Partition 2 auf 100% erweitern (non-interactive)
+            sudo parted -s $LOOPDEV resizepart 2 100%
+
+            # Filesystem prüfen & erweitern (non-interactive)
+            sudo e2fsck -fy ${LOOPDEV}p2
+            sudo resize2fs ${LOOPDEV}p2
+
+      - name: Mount Image
+        run: |
+          sudo mkdir -p /mnt/rpi
+          sudo mount ${LOOPDEV}p2 /mnt/rpi
+          sudo mount ${LOOPDEV}p1 /mnt/rpi/boot
+
+      - name: Prepare chroot environment
+        run: |
+          sudo cp /usr/bin/qemu-aarch64-static /mnt/rpi/usr/bin/
+          sudo mount --bind /dev /mnt/rpi/dev
+          sudo mount --bind /sys /mnt/rpi/sys
+          sudo mount --bind /proc /mnt/rpi/proc
+
+      - name: Copy installer payload into image
+        run: |
+          sudo mkdir -p /mnt/rpi/opt/mfd-carplay
+          sudo cp install.sh /mnt/rpi/opt/mfd-carplay/install.sh
+          sudo cp -r config /mnt/rpi/opt/mfd-carplay/config
+          sudo chmod +x /mnt/rpi/opt/mfd-carplay/install.sh
+
+      - name: Copy firmware config correctly
+        run: |
+          # Sicherstellen, dass beide Orte identisch sind
+          sudo mkdir -p /mnt/rpi/boot/firmware
+
+          # config.txt auf die echte Boot-Partition (FAT)
+          sudo cp config/config.txt /mnt/rpi/boot/config.txt
+
+          # UND in das firmware-Verzeichnis im RootFS
+          sudo cp config/config.txt /mnt/rpi/boot/firmware/config.txt
+
+          # Optional: prüfen was wirklich existiert
+          echo "=== BOOT CONTENT ==="
+          ls -la /mnt/rpi/boot
+          echo "=== FIRMWARE CONTENT ==="
+          ls -la /mnt/rpi/boot/firmware
+
+      - name: Execute install.sh inside image
+        run: |
+          sudo chroot /mnt/rpi /usr/bin/env \
+            FEATURE_DISABLE_VNC=${FEATURE_DISABLE_VNC} \
+            FEATURE_DISABLE_SSH=${FEATURE_DISABLE_SSH} \
+            FEATURE_BOOT_B4=${FEATURE_BOOT_B4} \
+            FEATURE_KIOSK_MODE=${FEATURE_KIOSK_MODE} \
+            FEATURE_LIVI_NATIVE_KIOSK=${FEATURE_LIVI_NATIVE_KIOSK} \
+            FEATURE_CARLINKIT_UDEV=${FEATURE_CARLINKIT_UDEV} \
+            FEATURE_LIVI_AUTOSTART=${FEATURE_LIVI_AUTOSTART} \
+            FEATURE_APT_UPGRADE=${FEATURE_APT_UPGRADE} \
+            /bin/bash -c "cd /opt/mfd-carplay && ./install.sh"
+          sudo rm -rf /mnt/rpi/opt/mfd-carplay
+
+      - name: Cleanup mounts
+        if: always()
+        run: |
+          sync
+          sudo umount /mnt/rpi/dev || true
+          sudo umount /mnt/rpi/sys || true
+          sudo umount /mnt/rpi/proc || true
+          sudo umount /mnt/rpi/boot || true
+          sudo umount /mnt/rpi || true
+          sudo losetup -d $LOOPDEV || true
+
+      - name: Compress image
+        run: |
+          if stat -c%s "$IMG_NAME" >/dev/null 2>&1; then
+            RAW_SIZE=$(stat -c%s "$IMG_NAME")
+          else
+            RAW_SIZE=$(stat -f%z "$IMG_NAME")
+          fi
+          echo "UNCOMPRESSED_SIZE=$RAW_SIZE" >> $GITHUB_ENV
+          xz -T0 -z "$IMG_NAME"
+
+      - name: Set compressed filename
+        id: compressed
+        run: |
+          echo "COMPRESSED_NAME=${IMG_NAME}.xz" >> $GITHUB_ENV
+          echo "name=${IMG_NAME}.xz" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ steps.compressed.outputs.name }}
+          tag_name: build-${{ github.run_number }}
+          name: MFD-CarPlay ${{ github.ref_name }}
+          body: |
+            This release contains the built image compressed with xz.
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update and push config/os_list.json
+        env:
+          COMPRESSED_NAME: ${{ steps.compressed.outputs.name }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OS_LIST_BRANCH: main
+          SOURCE_TAG: ${{ github.ref_name }}
+          UNCOMPRESSED_SIZE: ${{ env.UNCOMPRESSED_SIZE }}
+        run: |
+          set -euo pipefail
+          OWNER=${GITHUB_REPOSITORY%%/*}
+          REPO=${GITHUB_REPOSITORY##*/}
+          RELEASE_TAG="build-${GITHUB_RUN_NUMBER}"
+          FILE="${COMPRESSED_NAME}"
+
+          # Construct direct GitHub release download URL
+          URL="https://github.com/${OWNER}/${REPO}/releases/download/${RELEASE_TAG}/${FILE}"
+
+          # Determine download and extract sizes
+
+          COMPRESSED_SIZE=0
+          if [ -f "$FILE" ]; then
+            if stat -c%s "$FILE" >/dev/null 2>&1; then
+              COMPRESSED_SIZE=$(stat -c%s "$FILE")
+            else
+              COMPRESSED_SIZE=$(stat -f%z "$FILE")
+            fi
+          fi
+
+          # Prefer exact uncompressed size from pre-compression step.
+          # Fallback to xz metadata if not available.
+          EXTRACT_SIZE=${UNCOMPRESSED_SIZE:-0}
+          if [ "$EXTRACT_SIZE" -eq 0 ] && [ -f "$FILE" ]; then
+            EXTRACT_SIZE=$(xz --robot --list "$FILE" 2>/dev/null | awk -F '\t' '/^totals/{print $5; exit}')
+            EXTRACT_SIZE=${EXTRACT_SIZE:-0}
+          fi
+
+          # Round to multiples of 512 bytes
+          COMPRESSED_SIZE_ALIGNED=$(( (COMPRESSED_SIZE + 511) / 512 * 512 ))
+          EXTRACT_SIZE_ALIGNED=$(( (EXTRACT_SIZE + 511) / 512 * 512 ))
+
+          RELEASE_DATE=$(date -u +%Y-%m-%d)
+
+          # Ensure jq is available
+          if ! command -v jq >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y jq
+          fi
+
+          # Read local config/os_list.json and update fields in-memory
+          UPDATED_JSON=$(jq --arg url "$URL" --arg date "$RELEASE_DATE" --argjson dsize $COMPRESSED_SIZE_ALIGNED --argjson xsize $EXTRACT_SIZE_ALIGNED \
+            '.os_list[0].url = $url | .os_list[0].release_date = $date | .os_list[0].image_download_size = $dsize | .os_list[0].image_size = $xsize | .os_list[0].extract_size = $xsize' config/os_list.json)
+
+          # Persist updated os_list.json for commit/push
+          UPDATED_FILE="$(mktemp)"
+          printf '%s\n' "$UPDATED_JSON" > "$UPDATED_FILE"
+
+          # Build release body from commits in this source tag range
+          PREV_TAG=$(git tag --sort=-creatordate | grep -E '^[Vv][0-9]' | grep -v -x "$SOURCE_TAG" | head -n1 || true)
+          if [ -n "${PREV_TAG:-}" ]; then
+            COMMITS=$(git log --pretty='- %s (%h)' "${PREV_TAG}..${SOURCE_TAG}" | head -n 50)
+          else
+            COMMITS=$(git log --pretty='- %s (%h)' -n 20)
+          fi
+          if [ -z "${COMMITS:-}" ]; then
+            COMMITS="- No commit metadata available."
+          fi
+
+          BODY_CONTENT=$(printf '## MFD-CarPlay %s\n\nBuilt image file: %s\n\n### Commit summary\n%s\n' "$SOURCE_TAG" "$FILE" "$COMMITS")
+
+          # Get release id
+          RELEASE_ID=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" "https://api.github.com/repos/${OWNER}/${REPO}/releases/tags/${RELEASE_TAG}" | jq -r .id)
+
+          if [ "$RELEASE_ID" = "null" ] || [ -z "$RELEASE_ID" ]; then
+            echo "Release for tag ${RELEASE_TAG} not found; aborting update."
+            exit 1
+          fi
+
+          # Patch the release body
+          PAYLOAD=$(jq -n --arg body "$BODY_CONTENT" '{body: $body}')
+          curl -s -X PATCH -H "Authorization: token ${GITHUB_TOKEN}" -H "Content-Type: application/json" \
+            -d "$PAYLOAD" "https://api.github.com/repos/${OWNER}/${REPO}/releases/${RELEASE_ID}"
+
+          # Commit updated os_list.json to branch
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git fetch origin --prune
+          if git ls-remote --exit-code --heads origin "$OS_LIST_BRANCH" >/dev/null 2>&1; then
+            git checkout -B "$OS_LIST_BRANCH" "origin/$OS_LIST_BRANCH"
+          else
+            DEFAULT_BRANCH="$(git remote show origin | sed -n '/HEAD branch/s/.*: //p')"
+            git checkout -B "$OS_LIST_BRANCH" "origin/$DEFAULT_BRANCH"
+          fi
+
+          cp "$UPDATED_FILE" config/os_list.json
+
+          if git diff --quiet -- config/os_list.json; then
+            echo "config/os_list.json unchanged; nothing to commit"
+          else
+            git add config/os_list.json
+            git commit -m "chore: update os_list.json for ${RELEASE_TAG}"
+            git push origin "$OS_LIST_BRANCH"
+          fi

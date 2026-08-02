@@ -1,0 +1,83 @@
+# For more options and information see
+# http://rptl.io/configtxt
+# Some settings may impact device functionality. See link above for details
+
+# Uncomment some or all of these to enable the optional hardware interfaces
+dtparam=i2c_arm=off
+dtparam=i2s=off
+dtparam=spi=off
+
+# Enable audio (loads snd_bcm2835)
+dtparam=audio=on
+
+# Additional overlays and parameters are documented
+# /boot/firmware/overlays/README
+
+# Automatically load overlays for detected cameras
+camera_auto_detect=0
+
+# Automatically load overlays for detected DSI displays
+display_auto_detect=0
+
+# Automatically load initramfs files, if found
+auto_initramfs=1
+
+# Enable full KMS with framebuffer support for Wayland and apps that need /dev/fb0
+dtoverlay=vc4-fkms-v3d
+max_framebuffers=2
+
+# Don't have the firmware create an initial video= setting in cmdline.txt.
+# Use the kernel's default instead.
+#disable_fw_kms_setup=0
+
+# Run in 64-bit mode
+arm_64bit=1
+
+# Run as fast as firmware / board allows
+arm_boost=1
+
+[cm4]
+# Enable host mode on the 2711 built-in XHCI USB controller.
+# This line should be removed if the legacy DWC2 controller is required
+# (e.g. for USB device mode) or if USB support is not required.
+otg_mode=1
+
+[cm5]
+dtoverlay=dwc2,dr_mode=host
+
+[all]
+
+###########
+# MFD-HAT #
+###########
+
+# Set default-framebuffer to DPI/VGA666
+enable_dpi_lcd=1
+display_default_lcd=1
+
+# Enable DPI display using the vc4-kms-dpi-generic overlay
+#dtoverlay=vc4-kms-dpi-generic
+dtoverlay=vc4-fkms-v3d
+dtparam=rgb666=1
+
+# Video mode as dtparam timings: PAL (active)
+dtparam=hactive=376
+dtparam=hfp=16
+dtparam=hsync=32
+dtparam=hbp=40
+dtparam=vactive=276
+dtparam=vfp=3
+dtparam=vsync=2
+dtparam=vbp=19
+
+# Video mode as dtparam timings: NTSC (uncomment these and comment PAL values above)
+# Approximation of the proven overscan setup:
+# overscan_left=17, overscan_top=5, right/bottom=0
+#dtparam=hactive=375
+#dtparam=hfp=9
+#dtparam=hsync=32
+#dtparam=hbp=48
+#dtparam=vactive=239
+#dtparam=vfp=2
+#dtparam=vsync=2
+#dtparam=vbp=19

@@ -1,0 +1,60 @@
+# Enable audio (loads snd_bcm2835)
+dtparam=audio=on
+boot_delay=0
+
+arm_freq=2000
+gpu_freq=750
+over_voltage=6
+disable_splash=1
+
+disable_poe_fan=1
+
+dtparam=i2c_arm=on
+dtparam=i2s=off
+dtparam=spi=off
+
+dtoverlay=vga666
+dpi_output_format=0x15
+enable_dpi_lcd=1
+display_default_lcd=1
+dpi_group=2
+dpi_mode=87
+
+# Video mode as dtparam timings: PAL (uncomment these and comment NTSC values below)
+# Approximation of the proven overscan setup:
+# overscan_left=17, overscan_top=7, right/bottom=0
+#dtparam=hactive=375
+#dtparam=hfp=9
+#dtparam=hsync=32
+#dtparam=hbp=48
+#dtparam=vactive=275
+#dtparam=vfp=0
+#dtparam=vsync=2
+#dtparam=vbp=23
+
+# Video mode as dtparam timings: NTSC (active)
+# Approximation of the proven overscan setup:
+# overscan_left=17, overscan_top=5, right/bottom=0
+dtparam=hactive=375
+dtparam=hfp=9
+dtparam=hsync=32
+dtparam=hbp=48
+dtparam=vactive=239
+dtparam=vfp=2
+dtparam=vsync=2
+dtparam=vbp=19
+
+#disable_fw_kms_setup=0
+disable_overscan=0
+[pi4]
+# Enable DRM VC4 V3D driver on top of the dispmanx display stack
+#dtoverlay=vc4-fkms-v3d
+#max_framebuffers=2
+disable_fw_kms_setup=1
+dtoverlay=vc4-kms-v3d,noaudio,nohdmi
+dtoverlay=vc4-kms-dpi-generic,hactive=320,hfp=19,hsync=43,hbp=36
+[all]
+intial_turbo=30
+
+#start_x=0
+enable_uart=0
