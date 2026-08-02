@@ -124,6 +124,36 @@ enable_unit_offline() {
 	fi
 }
 
+setup_firstboot_cloudinit_reboot() {
+	echo "→ Setting up one-time reboot after initial cloud-init"
+
+	FIRSTBOOT_UNIT="/etc/systemd/system/mfd-firstboot-reboot.service"
+	MARKER_FILE="/var/lib/mfd-firstboot-reboot.done"
+
+	run_privileged tee "$FIRSTBOOT_UNIT" >/dev/null <<EOF
+[Unit]
+Description=One-time reboot after first cloud-init boot
+After=cloud-final.service
+Wants=cloud-final.service
+ConditionPathExists=/var/lib/cloud/instance/boot-finished
+ConditionPathExists=!${MARKER_FILE}
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash -lc 'touch ${MARKER_FILE}; systemctl --no-block reboot'
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+	if is_chroot_no_systemd; then
+		enable_unit_offline "mfd-firstboot-reboot.service" "multi-user.target"
+	else
+		run_privileged systemctl daemon-reload
+		run_privileged systemctl enable mfd-firstboot-reboot.service
+	fi
+}
+
 setup_livi_native_kiosk() {
 	echo "→ Setting up LIVI native kiosk (tty1 + cage)"
 
@@ -385,6 +415,8 @@ fi
 if [ -f "$APPIMAGE_PATH" ] && is_enabled "$FEATURE_LIVI_NATIVE_KIOSK"; then
 	setup_livi_native_kiosk
 fi
+
+setup_firstboot_cloudinit_reboot
 
 # Configure system settings (may be no-op in CI image)
 if is_enabled "$FEATURE_DISABLE_VNC"; then
