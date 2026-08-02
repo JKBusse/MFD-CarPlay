@@ -14,8 +14,8 @@ This repository and produced images make use of third-party software. Licensing 
 - License: Mixed Debian/Raspberry Pi package licensing (see `/usr/share/doc/*/copyright` in the image)
 - Usage: Base image used for customization.
 
-3. gh-large-releases action
-- Source: https://github.com/ading2210/gh-large-releases
+3. softprops/action-gh-release action
+- Source: https://github.com/softprops/action-gh-release
 - License: See upstream repository
 - Usage: Release artifact publishing in CI.
 

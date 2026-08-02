@@ -15,9 +15,9 @@ This project builds on top of the work of several open-source projects and commu
 ## Tooling and Infrastructure
 
 - GitHub Actions runners and workflows
-- ading2210/gh-large-releases GitHub Action
-  - Repository: https://github.com/ading2210/gh-large-releases
-  - Role in this project: Publishes large image artifacts for download.
+- softprops/action-gh-release GitHub Action
+  - Repository: https://github.com/softprops/action-gh-release
+  - Role in this project: Publishes release artifacts for download.
 
 ## Thanks
 

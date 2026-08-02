@@ -42,7 +42,7 @@ The goal of this project is to bring modern smartphone integration (Apple CarPla
    ![alt text](assets/images/install2.jpg)
 
      ```
-     https://github.com/JKBusse/MFD-CarPlay/raw/refs/heads/livi/config/os_list.json
+   https://github.com/JKBusse/MFD-CarPlay/raw/refs/heads/main/config/os_list.json
      ```
       And click save and restart
 
@@ -55,7 +55,7 @@ The goal of this project is to bring modern smartphone integration (Apple CarPla
 5. **Select your SD Card:**
    ![alt text](assets/images/install5.png)
 
-6. **Made the image customisation:**
+6. **Customize the image:**
    - Set the Hostname:
       ![alt text](assets/images/install6.png)
    
@@ -77,8 +77,13 @@ The goal of this project is to bring modern smartphone integration (Apple CarPla
       ![](assets/images/install12.png)
 
 8. **Done**:
-Now put the SD Card in your Raspberry Pi an connect the HAT to the MFD.
-If you power on your Raspberry Pi you should see a Picture on the MFD Screen. 
+Now put the SD Card in your Raspberry Pi and connect the HAT to the MFD.
+
+## Boot Behavior
+
+- The first start performs cloud-init provisioning.
+- Later boots use the optimized quiet-boot setup to reduce console output.
+- The image uses a splash screen on boot when Plymouth is available in the target image.
 
 ## Troubleshooting
 
@@ -98,6 +103,7 @@ If you'd like to contribute to this project, feel free to fork the repository an
 - **Release and metadata maintenance:** `config/os_list.json` is updated automatically by CI after successful image builds.
 - **Officially tested models:** Raspberry Pi 4 and Raspberry Pi 5.
 - **Best-effort scope:** Community support is best effort; hardware-specific edge cases may need logs and reproduction steps.
+- **Boot troubleshooting:** If the first boot appears to pause after provisioning, wait for the automatic reboot once cloud-init finishes.
 
 ## License
 

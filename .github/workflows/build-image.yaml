@@ -153,22 +153,22 @@ jobs:
           echo "COMPRESSED_NAME=${IMG_NAME}.xz" >> $GITHUB_ENV
           echo "name=${IMG_NAME}.xz" >> $GITHUB_OUTPUT
 
-      - name: Create Large Release (supports >2GB)
-        uses: ading2210/gh-large-releases@v1
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
         with:
-          files: ${{ steps.compressed.outputs.name }}
+          files: |
+            ${{ steps.compressed.outputs.name }}
           tag_name: build-${{ github.run_number }}
           name: MFD-CarPlay ${{ github.ref_name }}
           body: |
-            This release contains the built image compressed with xz. The action will split large files
-            and provide download URLs that reassemble on-the-fly via the configured Cloudflare Worker.
+            This release contains the built image compressed with xz.
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Update and push config/os_list.json
         env:
           COMPRESSED_NAME: ${{ steps.compressed.outputs.name }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          OS_LIST_BRANCH: livi
+          OS_LIST_BRANCH: main
           SOURCE_TAG: ${{ github.ref_name }}
           UNCOMPRESSED_SIZE: ${{ env.UNCOMPRESSED_SIZE }}
         run: |
@@ -178,8 +178,8 @@ jobs:
           RELEASE_TAG="build-${GITHUB_RUN_NUMBER}"
           FILE="${COMPRESSED_NAME}"
 
-          # Construct public download URL served by the large release worker
-          URL="https://gh-releases.ading2210.workers.dev/${OWNER}/${REPO}/releases/download/${RELEASE_TAG}/${FILE}"
+          # Construct direct GitHub release download URL
+          URL="https://github.com/${OWNER}/${REPO}/releases/download/${RELEASE_TAG}/${FILE}"
 
           # Determine download and extract sizes
 
