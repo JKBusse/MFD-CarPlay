@@ -2,10 +2,13 @@ name: Build MFD CarPlay Image
 
 on:
   push:
-    # Trigger only when a version tag is pushed, e.g. V0.9.20 or v0.9.20
+    # Trigger on version tags for releases and on nightly branch for test builds
     tags:
       - 'V*'
       - 'v*'
+    branches:
+      - nightly
+  workflow_dispatch:
 
 jobs:
   build:
@@ -46,15 +49,31 @@ jobs:
         run: |
             wget -O raspios.img.xz -L https://downloads.raspberrypi.org/raspios_lite_arm64_latest
             xz -d raspios.img.xz
-            # Determine version from pushed tag (strip leading V/v). Fallback to run number.
-            TAG=${GITHUB_REF#refs/tags/}
-            VERSION=${TAG#V}
-            VERSION=${VERSION#v}
-            if [ -z "$VERSION" ]; then
-              VERSION="0.9.$GITHUB_RUN_NUMBER"
+
+            if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+              TAG=${GITHUB_REF#refs/tags/}
+              VERSION=${TAG#V}
+              VERSION=${VERSION#v}
+              RELEASE_TAG="build-${GITHUB_RUN_NUMBER}"
+              RELEASE_NAME="MFD-CarPlay ${GITHUB_REF_NAME}"
+              SOURCE_REF="${GITHUB_REF_NAME}"
+            elif [[ "${GITHUB_REF}" == "refs/heads/nightly" ]]; then
+              VERSION="-nightly-$(date -u +%Y%m%d)-${GITHUB_RUN_NUMBER}"
+              RELEASE_TAG="nightly-${GITHUB_RUN_NUMBER}"
+              RELEASE_NAME="MFD-CarPlay nightly ${GITHUB_RUN_NUMBER}"
+              SOURCE_REF="nightly"
+            else
+              VERSION="-manual-${GITHUB_RUN_NUMBER}"
+              RELEASE_TAG="manual-${GITHUB_RUN_NUMBER}"
+              RELEASE_NAME="MFD-CarPlay manual ${GITHUB_RUN_NUMBER}"
+              SOURCE_REF="${GITHUB_REF_NAME}"
             fi
+
             IMG_NAME="MFD-CarPlay${VERSION}.img"
             echo "IMG_NAME=$IMG_NAME" >> $GITHUB_ENV
+            echo "RELEASE_TAG=$RELEASE_TAG" >> $GITHUB_ENV
+            echo "RELEASE_NAME=$RELEASE_NAME" >> $GITHUB_ENV
+            echo "SOURCE_REF=$SOURCE_REF" >> $GITHUB_ENV
             mv raspios.img "$IMG_NAME"
 
       - name: Expand image size
@@ -158,8 +177,8 @@ jobs:
         with:
           files: |
             ${{ steps.compressed.outputs.name }}
-          tag_name: build-${{ github.run_number }}
-          name: MFD-CarPlay ${{ github.ref_name }}
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: ${{ env.RELEASE_NAME }}
           body: |
             This release contains the built image compressed with xz.
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -169,13 +188,13 @@ jobs:
           COMPRESSED_NAME: ${{ steps.compressed.outputs.name }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OS_LIST_BRANCH: main
-          SOURCE_TAG: ${{ github.ref_name }}
+          SOURCE_TAG: ${{ env.SOURCE_REF }}
           UNCOMPRESSED_SIZE: ${{ env.UNCOMPRESSED_SIZE }}
+          RELEASE_TAG: ${{ env.RELEASE_TAG }}
         run: |
           set -euo pipefail
           OWNER=${GITHUB_REPOSITORY%%/*}
           REPO=${GITHUB_REPOSITORY##*/}
-          RELEASE_TAG="build-${GITHUB_RUN_NUMBER}"
           FILE="${COMPRESSED_NAME}"
 
           # Construct direct GitHub release download URL
@@ -221,11 +240,15 @@ jobs:
           printf '%s\n' "$UPDATED_JSON" > "$UPDATED_FILE"
 
           # Build release body from commits in this source tag range
-          PREV_TAG=$(git tag --sort=-creatordate | grep -E '^[Vv][0-9]' | grep -v -x "$SOURCE_TAG" | head -n1 || true)
-          if [ -n "${PREV_TAG:-}" ]; then
-            COMMITS=$(git log --pretty='- %s (%h)' "${PREV_TAG}..${SOURCE_TAG}" | head -n 50)
-          else
+          if [[ "$SOURCE_TAG" == nightly ]]; then
             COMMITS=$(git log --pretty='- %s (%h)' -n 20)
+          else
+            PREV_TAG=$(git tag --sort=-creatordate | grep -E '^[Vv][0-9]' | grep -v -x "$SOURCE_TAG" | head -n1 || true)
+            if [ -n "${PREV_TAG:-}" ]; then
+              COMMITS=$(git log --pretty='- %s (%h)' "${PREV_TAG}..${SOURCE_TAG}" | head -n 50)
+            else
+              COMMITS=$(git log --pretty='- %s (%h)' -n 20)
+            fi
           fi
           if [ -z "${COMMITS:-}" ]; then
             COMMITS="- No commit metadata available."
