@@ -22,6 +22,7 @@ jobs:
       FEATURE_CARLINKIT_UDEV: "1"
       FEATURE_LIVI_AUTOSTART: "0"
       FEATURE_APT_UPGRADE: "0"
+      LIVI_VERSION: "v8.3.0"
 
     steps:
       - name: Checkout repository
@@ -123,6 +124,7 @@ jobs:
             FEATURE_CARLINKIT_UDEV=${FEATURE_CARLINKIT_UDEV} \
             FEATURE_LIVI_AUTOSTART=${FEATURE_LIVI_AUTOSTART} \
             FEATURE_APT_UPGRADE=${FEATURE_APT_UPGRADE} \
+            LIVI_VERSION=${LIVI_VERSION} \
             /bin/bash -c "cd /opt/mfd-carplay && ./install.sh"
           sudo rm -rf /mnt/rpi/opt/mfd-carplay
 
@@ -159,7 +161,7 @@ jobs:
           files: |
             ${{ steps.compressed.outputs.name }}
           tag_name: build-${{ github.run_number }}
-          name: MFD-CarPlay ${{ github.ref_name }}
+          name: MFD-CarPlay ${{ github.ref_name }} (LIVI ${{ env.LIVI_VERSION }})
           body: |
             This release contains the built image compressed with xz.
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -168,7 +170,7 @@ jobs:
         env:
           COMPRESSED_NAME: ${{ steps.compressed.outputs.name }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          OS_LIST_BRANCH: main
+          OS_LIST_BRANCH: livi-8.3
           SOURCE_TAG: ${{ github.ref_name }}
           UNCOMPRESSED_SIZE: ${{ env.UNCOMPRESSED_SIZE }}
         run: |

@@ -17,6 +17,9 @@ FEATURE_QUIET_BOOT="${FEATURE_QUIET_BOOT:-1}"
 FEATURE_BOOT_SPLASH="${FEATURE_BOOT_SPLASH:-1}"
 FEATURE_OPTIMIZE_BOOT="${FEATURE_OPTIMIZE_BOOT:-1}"
 
+# LIVI release tag to install (e.g. v8.3.0), or "latest"
+LIVI_VERSION="${LIVI_VERSION:-v8.3.0}"
+
 is_enabled() {
 	case "${1:-0}" in
 		1|true|TRUE|yes|YES|on|ON) return 0 ;;
@@ -414,9 +417,14 @@ else
 	ICON_DEST=""
 fi
 
-# Fetch latest ARM64 AppImage from GitHub
-echo "→ Fetching latest LIVI release"
-latest_url=$(curl -s https://api.github.com/repos/f-io/LIVI/releases/latest \
+# Fetch ARM64 AppImage from GitHub
+if [ "$LIVI_VERSION" = "latest" ]; then
+	LIVI_RELEASE_API="https://api.github.com/repos/f-io/LIVI/releases/latest"
+else
+	LIVI_RELEASE_API="https://api.github.com/repos/f-io/LIVI/releases/tags/$LIVI_VERSION"
+fi
+echo "→ Fetching LIVI release ($LIVI_VERSION)"
+latest_url=$(curl -s "$LIVI_RELEASE_API" \
 	| grep "browser_download_url" \
 	| grep "arm64.AppImage" \
 	| cut -d '"' -f 4)
