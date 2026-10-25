@@ -148,11 +148,15 @@ Type=oneshot
 ExecStart=/bin/bash -lc 'touch ${MARKER_FILE}; touch /etc/cloud/cloud-init.disabled; systemctl disable cloud-init.service cloud-config.service cloud-final.service cloud-init-local.service cloud-init-main.service >/dev/null 2>&1 || true; systemctl --no-block reboot'
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=cloud-init.target
 EOF
 
+	# cloud-final.service is ordered after multi-user.target, so hanging this unit
+	# off multi-user.target formed an ordering cycle and systemd dropped it.
+	run_privileged rm -f /etc/systemd/system/multi-user.target.wants/mfd-firstboot-reboot.service
+
 	if is_chroot_no_systemd; then
-		enable_unit_offline "mfd-firstboot-reboot.service" "multi-user.target"
+		enable_unit_offline "mfd-firstboot-reboot.service" "cloud-init.target"
 	else
 		run_privileged systemctl daemon-reload
 		run_privileged systemctl enable mfd-firstboot-reboot.service
@@ -331,6 +335,15 @@ Restart=no
 [Install]
 WantedBy=multi-user.target
 EOF
+
+	# The kiosk conflicts with getty@tty1. With both queued at boot, systemd
+	# silently drops one of them, so the kiosk started only on some boots. Keep
+	# getty out of the boot transaction; the kiosk starts it itself on exit
+	# (ExecStopPost). The preset stops a first-boot preset run re-enabling it.
+	echo "→ Removing getty@tty1 from boot (the kiosk owns tty1)"
+	run_privileged rm -f /etc/systemd/system/getty.target.wants/getty@tty1.service
+	run_privileged mkdir -p /etc/systemd/system-preset
+	echo "disable getty@.service" | run_privileged tee /etc/systemd/system-preset/10-livi-kiosk.preset >/dev/null
 
 	if is_chroot_no_systemd; then
 		echo "→ No running systemd detected; enabling kiosk units offline"
