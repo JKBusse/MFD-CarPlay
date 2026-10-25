@@ -6,7 +6,7 @@ CONFIG_DIR="${SCRIPT_DIR}/config"
 
 # Feature flags (1=enabled, 0=disabled)
 FEATURE_DISABLE_VNC="${FEATURE_DISABLE_VNC:-1}"
-FEATURE_DISABLE_SSH="${FEATURE_DISABLE_SSH:-1}"
+FEATURE_DISABLE_SSH="${FEATURE_DISABLE_SSH:-0}"
 FEATURE_BOOT_B4="${FEATURE_BOOT_B4:-1}"
 FEATURE_KIOSK_MODE="${FEATURE_KIOSK_MODE:-1}"
 FEATURE_LIVI_NATIVE_KIOSK="${FEATURE_LIVI_NATIVE_KIOSK:-1}"
@@ -16,6 +16,8 @@ FEATURE_APT_UPGRADE="${FEATURE_APT_UPGRADE:-1}"
 FEATURE_QUIET_BOOT="${FEATURE_QUIET_BOOT:-1}"
 FEATURE_BOOT_SPLASH="${FEATURE_BOOT_SPLASH:-1}"
 FEATURE_OPTIMIZE_BOOT="${FEATURE_OPTIMIZE_BOOT:-1}"
+# Apple MFi coprocessor wired to GPIO 19/26 (native CarPlay without dongle)
+FEATURE_LIVI_MFI="${FEATURE_LIVI_MFI:-0}"
 
 is_enabled() {
 	case "${1:-0}" in
@@ -75,7 +77,7 @@ $SUDO apt-get install -y \
 	libxi-dev libx11-dev libxrandr-dev txt2man curl xdg-user-dirs \
 	bluez libspa-0.2-bluetooth hostapd dnsmasq-base iw rfkill \
 	python3-pip pulseaudio-utils python3-dbus python3-gi python3-smbus2 \
-	avahi-daemon libva2
+	avahi-daemon libva2 libva-drm2 libva-x11-2 libssh-4
 
 # Move config if present (guard against missing file when run from CI)
 if [ -f "$CONFIG_DIR/config.txt" ]; then
@@ -264,13 +266,11 @@ setup_livi_native_kiosk() {
 
 	# LIVI 8.x is an Electron app: the binary links GTK3/NSS/CUPS/X11 directly,
 	# none of which ship with Pi OS Lite. Without them LIVI exits immediately and
-	# the kiosk falls back to the tty1 shell. The bundled GStreamer decoder also
-	# needs the host VA-API and libssh runtimes (see LIVI's packages.txt).
+	# the kiosk falls back to the tty1 shell.
 	# Trixie renamed several libs with a t64 suffix, so pick whichever exists.
 	ELECTRON_DEPS=""
 	for pkg in libgtk-3-0 libnss3 libcups2 libgbm1 libasound2 libatspi2.0-0 \
-		libxss1 libxtst6 libnotify4 libsecret-1-0 libdrm2 libxkbcommon0 \
-		libva2 libva-drm2 libva-x11-2 libssh-4; do
+		libxss1 libxtst6 libnotify4 libsecret-1-0 libdrm2 libxkbcommon0; do
 		if apt-cache show "${pkg}t64" >/dev/null 2>&1; then
 			ELECTRON_DEPS="$ELECTRON_DEPS ${pkg}t64"
 		else
@@ -356,6 +356,258 @@ EOF
 }
 
 # ====================================
+# LIVI host integration
+# Mirrors what LIVI's own scripts/install/headless/install.sh sets up, so the
+# kiosk needs no pkexec dialog (there is no polkit agent under cage).
+# ====================================
+
+LIVI_USER="pi"
+LIVI_REPO_RAW="https://raw.githubusercontent.com/f-io/LIVI"
+
+# Git ref for LIVI's installer assets, matching the AppImage we download.
+livi_asset_ref() {
+	if [ -n "${LIVI_VERSION:-}" ] && [ "$LIVI_VERSION" != "latest" ]; then
+		echo "$LIVI_VERSION"
+	else
+		curl -s https://api.github.com/repos/f-io/LIVI/releases/latest \
+			| grep '"tag_name"' | head -1 | cut -d '"' -f 4
+	fi
+}
+
+# livi_fetch_asset <name> -> prints the path to the template. Taken from the
+# AppImage so it matches the installed app, the repository is the fallback.
+livi_fetch_asset() {
+	asset_name="$1"
+	asset_dir="$LIVI_EXTRACT_DIR/$asset_name.d"
+	mkdir -p "$asset_dir"
+	if [ -x "$APPIMAGE_PATH" ]; then
+		( cd "$asset_dir" && "$APPIMAGE_PATH" --appimage-extract "resources/$asset_name" >/dev/null 2>&1 ) || true
+	fi
+	asset_path="$asset_dir/squashfs-root/resources/$asset_name"
+	if [ ! -f "$asset_path" ]; then
+		[ -n "$LIVI_ASSET_REF" ] || return 1
+		asset_path="$asset_dir/$asset_name"
+		curl -fsL "$LIVI_REPO_RAW/$LIVI_ASSET_REF/assets/linux/$asset_name" -o "$asset_path" || return 1
+	fi
+	echo "$asset_path"
+}
+
+# livi_install_sudoers <file>; content on stdin. Validated with visudo first,
+# the .livi-tmp name keeps sudo from reading it before that.
+livi_install_sudoers() {
+	rule="$1"
+	echo "→ Writing $rule"
+	run_privileged tee "$rule.livi-tmp" >/dev/null
+	run_privileged chown root:root "$rule.livi-tmp"
+	run_privileged chmod 0440 "$rule.livi-tmp"
+	if run_privileged visudo -c -f "$rule.livi-tmp" >/dev/null; then
+		run_privileged mv "$rule.livi-tmp" "$rule"
+	else
+		run_privileged rm -f "$rule.livi-tmp"
+		echo "⚠ $rule failed validation and was not installed"
+	fi
+}
+
+# livi_install_root_helper <helper> <sudoers-file> <description>; script body on stdin.
+livi_install_root_helper() {
+	helper="$1"
+	helper_rule="$2"
+	helper_desc="$3"
+	echo "→ Installing $helper"
+	run_privileged mkdir -p "$(dirname "$helper")"
+	run_privileged tee "$helper" >/dev/null
+	run_privileged chown root:root "$helper"
+	run_privileged chmod 0755 "$helper"
+	livi_install_sudoers "$helper_rule" <<EOF
+# Installed by LIVI — $helper_desc
+# Remove this file to revoke.
+$LIVI_USER ALL=(root) NOPASSWD: $helper *
+EOF
+}
+
+livi_install_udev_rules() {
+	# The LIVI rule covers the Carlinkit dongle, hides the mouse interface of touch
+	# panels that also expose a multitouch digitizer (via livi-touch-filter), and
+	# sets up Apple/Android USB access for wired CarPlay and Android Auto.
+	if udev_template="$(livi_fetch_asset 99-LIVI.rules.template)" \
+		&& touch_filter="$(livi_fetch_asset livi-touch-filter)"; then
+		echo "→ Installing /usr/local/lib/livi/livi-touch-filter"
+		run_privileged install -D -m 0755 -o root -g root "$touch_filter" /usr/local/lib/livi/livi-touch-filter
+		echo "→ Writing /etc/udev/rules.d/99-LIVI.rules"
+		sed "s/__USERNAME__/$LIVI_USER/g" "$udev_template" | run_privileged tee /etc/udev/rules.d/99-LIVI.rules >/dev/null
+		run_privileged rm -f /etc/udev/rules.d/52-carplay.rules
+	else
+		echo "⚠ LIVI udev template unavailable, falling back to the Carlinkit-only rule"
+		echo 'SUBSYSTEM=="usb", ATTR{idVendor}=="1314", ATTR{idProduct}=="152*", MODE="0660", GROUP="plugdev"' | run_privileged tee /etc/udev/rules.d/52-carplay.rules >/dev/null
+	fi
+	# Both are no-ops in a chroot; the rules apply on first boot.
+	run_privileged udevadm control --reload-rules || true
+	run_privileged udevadm trigger || true
+}
+
+livi_install_helpers() {
+	# Bluetooth and Wi-Fi helper (wireless CarPlay / Android Auto) runs as root.
+	if sudoers_template="$(livi_fetch_asset 99-LIVI-bt.sudoers.template)"; then
+		python_bin="$(command -v python3 || echo /usr/bin/python3)"
+		sed -e "s/__USERNAME__/$LIVI_USER/g" -e "s#__PYTHON__#$python_bin#g" "$sudoers_template" \
+			| livi_install_sudoers /etc/sudoers.d/99-LIVI-bt
+	else
+		echo "⚠ LIVI sudoers template unavailable, Bluetooth/Wi-Fi helper will ask for pkexec"
+	fi
+
+	livi_install_root_helper /usr/local/lib/livi/livi-video-mode.sh /etc/sudoers.d/99-LIVI-video \
+		"lets $LIVI_USER pin the display mode in the kernel cmdline." <<'EOF'
+#!/bin/bash
+# Managed by LIVI. Pins video=<CONNECTOR:WxH@Hz> in the kernel cmdline; "clear" removes it.
+set -euo pipefail
+CMDLINE="/boot/firmware/cmdline.txt"
+arg="${1:-}"
+case "$arg" in
+  clear) new="" ;;
+  *)
+    [[ "$arg" =~ ^[A-Za-z0-9-]+:[0-9]+x[0-9]+@[0-9]+D?$ ]] || {
+      echo "usage: livi-video-mode.sh <CONNECTOR:WxH@Hz>|clear" >&2
+      exit 2
+    }
+    new="video=$arg"
+    ;;
+esac
+line="$(tr -d '\n' < "$CMDLINE")"
+stripped="$(sed -E 's/[[:space:]]*video=[^[:space:]]+//g' <<< "$line")"
+out="$stripped${new:+ $new}"
+[ "$out" = "$line" ] || echo "$out" > "$CMDLINE"
+EOF
+
+	livi_install_root_helper /usr/local/lib/livi/livi-set-time.sh /etc/sudoers.d/99-LIVI-time \
+		"lets $LIVI_USER set the system clock and timezone." <<'EOF'
+#!/bin/bash
+# Managed by LIVI. Sets the system clock from a unix timestamp, or the timezone.
+set -euo pipefail
+case "${1:-}" in
+  tz)
+    zone="${2:-}"
+    [[ "$zone" =~ ^[A-Za-z0-9_+/-]{1,64}$ ]] || { echo "usage: livi-set-time.sh tz <zone>" >&2; exit 2; }
+    [ -f "/usr/share/zoneinfo/$zone" ] || { echo "unknown timezone: $zone" >&2; exit 3; }
+    timedatectl set-timezone "$zone"
+    ;;
+  *)
+    arg="${1:-}"
+    [[ "$arg" =~ ^[0-9]{10,11}$ ]] || { echo "usage: livi-set-time.sh <unix-seconds>|tz <zone>" >&2; exit 2; }
+    date -u -s "@$arg" >/dev/null
+    command -v fake-hwclock >/dev/null 2>&1 && fake-hwclock save || true
+    ;;
+esac
+EOF
+
+	livi_install_root_helper /usr/local/lib/livi/livi-power.sh /etc/sudoers.d/99-LIVI-power \
+		"lets $LIVI_USER power the host down or reboot it." <<'EOF'
+#!/bin/bash
+# Managed by LIVI. Powers the host off or reboots it. Nothing else.
+set -euo pipefail
+case "${1:-}" in
+  poweroff) systemctl poweroff ;;
+  reboot)   systemctl reboot ;;
+  *) echo "usage: livi-power.sh poweroff|reboot" >&2 ; exit 2 ;;
+esac
+EOF
+}
+
+livi_install_pymobiledevice3() {
+	# Wired CarPlay drives the phone over usbmux, which needs pymobiledevice3.
+	echo "→ Installing pymobiledevice3 for wired CarPlay"
+	if ! command -v pip3 >/dev/null 2>&1; then
+		echo "⚠ pip3 missing, wired CarPlay stays disabled"
+		return 0
+	fi
+	if pip_out="$(run_privileged pip3 install --break-system-packages --ignore-installed -q pymobiledevice3 2>&1)"; then
+		echo "   installed"
+	else
+		echo "⚠ pymobiledevice3 install failed, wired CarPlay stays disabled"
+		printf '%s\n' "$pip_out" | tail -5
+	fi
+}
+
+livi_apply_mfi() {
+	# I2C bus 2 on GPIO 19/26 plus power pin 21, matching LIVI's defaults.
+	echo "→ Enabling I2C for the Apple MFi coprocessor"
+	mfi_overlay="dtoverlay=i2c-gpio,bus=2,i2c_gpio_sda=19,i2c_gpio_scl=26,i2c_gpio_delay_us=5"
+	if [ -f /boot/firmware/config.txt ]; then
+		if ! grep -qF "$mfi_overlay" /boot/firmware/config.txt; then
+			echo "$mfi_overlay" | run_privileged tee -a /boot/firmware/config.txt >/dev/null
+		fi
+	else
+		echo "⚠ /boot/firmware/config.txt not found, skipping MFi overlay"
+	fi
+	echo i2c-dev | run_privileged tee /etc/modules-load.d/livi-i2c.conf >/dev/null
+
+	# Keeps values already set in the app config; only a missing or disabled power pin is filled in.
+	run_privileged mkdir -p "$LIVI_USERDATA_DIR"
+	run_privileged python3 - "$LIVI_CONFIG_PATH" <<'PY'
+import json, sys
+path = sys.argv[1]
+try:
+    with open(path) as f:
+        cfg = json.load(f)
+except (OSError, ValueError):
+    cfg = {}
+cfg.setdefault("carPlayMfiI2cBus", 2)
+if cfg.get("carPlayMfiPowerGpio", -1) in (None, "", -1):
+    cfg["carPlayMfiPowerGpio"] = 21
+with open(path, "w") as f:
+    json.dump(cfg, f, indent=2)
+PY
+	if id -u "$LIVI_USER" >/dev/null 2>&1; then
+		run_privileged chown -R "$LIVI_USER:$LIVI_USER" "$LIVI_USERDATA_DIR" || true
+	fi
+}
+
+setup_livi_host_integration() {
+	echo "→ Applying LIVI host integration"
+	if ! have_privileges; then
+		echo "⚠ Skipping LIVI host integration (requires sudo/root)"
+		return 0
+	fi
+
+	LIVI_ASSET_REF="$(livi_asset_ref || true)"
+	LIVI_EXTRACT_DIR="$(mktemp -d)"
+
+	if is_enabled "$FEATURE_CARLINKIT_UDEV"; then
+		livi_install_udev_rules
+	else
+		echo "→ Skipping LIVI udev rules (feature disabled)"
+	fi
+
+	livi_install_helpers
+	livi_install_pymobiledevice3
+
+	# Radio power saving drops an idle link after a few minutes; PMF=optional
+	# keeps phones that do not support 802.11w connecting.
+	echo "→ Writing NetworkManager Wi-Fi powersave/PMF overrides"
+	run_privileged mkdir -p /etc/NetworkManager/conf.d
+	printf '[connection]\nwifi.powersave = 2\n' | run_privileged tee /etc/NetworkManager/conf.d/99-LIVI-wifi-powersave.conf >/dev/null
+	printf '[connection]\nwifi-sec.pmf=2\n' | run_privileged tee /etc/NetworkManager/conf.d/99-LIVI-wifi-pmf.conf >/dev/null
+
+	echo "→ Preloading iPhone USB net drivers (so cdc_ncm binds the AV interface at cold boot)"
+	run_privileged tee /etc/modules-load.d/livi.conf >/dev/null <<'EOF'
+cdc_ncm
+cdc_ether
+ipheth
+EOF
+
+	# Lingering keeps PipeWire user services running without a login. The marker
+	# file is what loginctl enable-linger writes, so this also works offline.
+	echo "→ Enabling lingering for $LIVI_USER"
+	run_privileged mkdir -p /var/lib/systemd/linger
+	run_privileged touch "/var/lib/systemd/linger/$LIVI_USER"
+
+	if is_enabled "$FEATURE_LIVI_MFI"; then
+		livi_apply_mfi
+	fi
+
+	rm -rf "$LIVI_EXTRACT_DIR"
+}
+
+# ====================================
 # LIVI CarPlay Installer (hardened)
 # ====================================
 
@@ -398,22 +650,6 @@ for tool in curl xdg-user-dir; do
 		echo "   $tool found"
 	fi
 done
-
-# Create udev rule for Carlinkit dongle (only if we have privileges)
-if is_enabled "$FEATURE_CARLINKIT_UDEV"; then
-	echo "→ Writing udev rule for Carlinkit"
-	UDEV_FILE="/etc/udev/rules.d/52-carplay.rules"
-	if have_privileges; then
-		echo 'SUBSYSTEM=="usb", ATTR{idVendor}=="1314", ATTR{idProduct}=="152*", MODE="0660", GROUP="plugdev"' | run_privileged tee "$UDEV_FILE" >/dev/null
-		echo "   Reloading udev rules"
-		run_privileged udevadm control --reload-rules
-		run_privileged udevadm trigger
-	else
-		echo "   ⚠ Skipping udev rule install (requires sudo/root)"
-	fi
-else
-	echo "→ Skipping Carlinkit udev rule (feature disabled)"
-fi
 
 # ICON INSTALLATION
 ICON_URL="https://raw.githubusercontent.com/f-io/LIVI/main/assets/icons/linux/livi.png"
@@ -470,6 +706,9 @@ if [ -f "$CUSTOM_LIVI_CONFIG" ]; then
 else
 	echo "→ No custom LIVI config found at $CUSTOM_LIVI_CONFIG (using LIVI defaults)"
 fi
+
+# udev rules, root helpers, Wi-Fi and USB net setup (after the config copy, MFi seeds it)
+setup_livi_host_integration
 
 # Create per-user autostart entry (desktop fallback)
 if [ -f "$APPIMAGE_PATH" ] && is_enabled "$FEATURE_LIVI_AUTOSTART" && ! is_enabled "$FEATURE_LIVI_NATIVE_KIOSK"; then
@@ -553,14 +792,16 @@ if is_enabled "$FEATURE_OPTIMIZE_BOOT"; then
 fi
 
 # Configure system settings (may be no-op in CI image)
+# raspi-config nonint: 0 = enable, 1 = disable. Enabling VNC on Lite installs
+# realvnc-vnc-server, which pulls in the whole CUPS printing stack.
 if is_enabled "$FEATURE_DISABLE_VNC"; then
-	$SUDO raspi-config nonint do_vnc 0 -y || true
+	$SUDO raspi-config nonint do_vnc 1 || true
 fi
 if is_enabled "$FEATURE_BOOT_B4"; then
 	$SUDO raspi-config nonint do_boot_behaviour B4 || true
 fi
 if is_enabled "$FEATURE_DISABLE_SSH"; then
-	$SUDO raspi-config nonint do_ssh 0 -y || true
+	$SUDO raspi-config nonint do_ssh 1 || true
 fi
 
 # Optional tweaks left commented out
