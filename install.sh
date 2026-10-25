@@ -265,6 +265,25 @@ setup_livi_native_kiosk() {
 
 	run_privileged apt-get install -y cage seatd wlr-randr pipewire pipewire-pulse wireplumber
 
+	# LIVI 8.x is an Electron app: the binary links GTK3/NSS/CUPS/X11 directly,
+	# none of which ship with Pi OS Lite. Without them LIVI exits immediately and
+	# the kiosk falls back to the tty1 shell. The bundled GStreamer decoder also
+	# needs the host VA-API and libssh runtimes (see LIVI's packages.txt).
+	# Trixie renamed several libs with a t64 suffix, so pick whichever exists.
+	ELECTRON_DEPS=""
+	for pkg in libgtk-3-0 libnss3 libcups2 libgbm1 libasound2 libatspi2.0-0 \
+		libxss1 libxtst6 libnotify4 libsecret-1-0 libdrm2 libxkbcommon0 \
+		libva2 libva-drm2 libva-x11-2 libssh-4; do
+		if apt-cache show "${pkg}t64" >/dev/null 2>&1; then
+			ELECTRON_DEPS="$ELECTRON_DEPS ${pkg}t64"
+		else
+			ELECTRON_DEPS="$ELECTRON_DEPS $pkg"
+		fi
+	done
+	echo "→ Installing LIVI Electron runtime libraries:$ELECTRON_DEPS"
+	# shellcheck disable=SC2086
+	run_privileged apt-get install -y --no-install-recommends $ELECTRON_DEPS
+
 	if id -u pi >/dev/null 2>&1; then
 		run_privileged usermod -aG video,render,input,plugdev pi || true
 	fi
