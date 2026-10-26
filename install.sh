@@ -18,6 +18,8 @@ FEATURE_BOOT_SPLASH="${FEATURE_BOOT_SPLASH:-1}"
 FEATURE_OPTIMIZE_BOOT="${FEATURE_OPTIMIZE_BOOT:-1}"
 # Apple MFi coprocessor wired to GPIO 19/26 (native CarPlay without dongle)
 FEATURE_LIVI_MFI="${FEATURE_LIVI_MFI:-0}"
+# Output volume on first start (0.0-1.0, as wpctl/LIVI show it)
+MFD_DEFAULT_VOLUME="${MFD_DEFAULT_VOLUME:-0.89}"
 
 # LIVI release tag to install (e.g. v8.3.0), or "latest"
 LIVI_VERSION="${LIVI_VERSION:-v8.3.0}"
@@ -618,6 +620,25 @@ EOF
 
 	if is_enabled "$FEATURE_LIVI_MFI"; then
 		livi_apply_mfi
+	fi
+
+	# WirePlumber uses this until it has saved a volume of its own. It takes
+	# linear volume, which is the cube of what wpctl and LIVI show.
+	echo "→ Setting default output volume to $MFD_DEFAULT_VOLUME"
+	sink_volume="$(awk -v v="$MFD_DEFAULT_VOLUME" 'BEGIN { printf "%.6f", v ^ 3 }')"
+	run_privileged mkdir -p /etc/wireplumber/wireplumber.conf.d
+	run_privileged tee /etc/wireplumber/wireplumber.conf.d/50-mfd-default-volume.conf >/dev/null <<EOF
+wireplumber.settings = {
+  device.routes.default-sink-volume = $sink_volume
+}
+EOF
+
+	# The installer runs as root and creates ~/.config and ~/.local on the way.
+	# Left root-owned, WirePlumber cannot save its state (so the volume reset on
+	# every boot) and LIVI cannot write its HFP config.
+	if id -u "$LIVI_USER" >/dev/null 2>&1; then
+		run_privileged mkdir -p "$USER_HOME/.config" "$USER_HOME/.local"
+		run_privileged chown -R "$LIVI_USER:$LIVI_USER" "$USER_HOME/.config" "$USER_HOME/.local"
 	fi
 
 	rm -rf "$LIVI_EXTRACT_DIR"
