@@ -6,7 +6,8 @@ disable_splash=1
 
 disable_poe_fan=1
 
-dtparam=i2c_arm=on
+# No i2c_arm: I2C1 sits on GPIO2/3, which carry VSYNC/HSYNC for the HAT. On the
+# Pi 5 the I2C driver claimed those pins first and the DPI display never came up.
 dtparam=i2s=off
 dtparam=spi=off
 
@@ -47,8 +48,10 @@ disable_fw_kms_setup=1
 
 [pi5]
 # KMS DPI display path for Raspberry Pi 5 (RP1). Same pins as the Pi 4 path:
-# VSYNC GPIO2, HSYNC GPIO3, RGB666 on GPIO4-21, both syncs active high.
+# VSYNC GPIO2, HSYNC GPIO3, RGB666 on GPIO4-21, both syncs active low.
 # Timings match the Pi 4 hdmi_timings above (7.3632 MHz, 376x276 @ 50.56 Hz).
+# The Pi 4 drives its syncs active low (fkms reports +H+V, the pins say
+# otherwise); with active-high syncs the MFD does not lock horizontally.
 # The Pi 5 has no analog audio; the HAT needs a USB sound card for audio.
 # config.txt lines are cut at 98 characters, so the timings go on dtparam lines.
 dtoverlay=vc4-kms-v3d
@@ -56,6 +59,7 @@ dtoverlay=vc4-kms-dpi-generic
 dtparam=clock-frequency=7363200
 dtparam=hactive=376,hfp=16,hsync=32,hbp=55
 dtparam=vactive=276,vfp=3,vsync=2,vbp=23
+dtparam=hsync-invert,vsync-invert
 
 [all]
 intial_turbo=30
