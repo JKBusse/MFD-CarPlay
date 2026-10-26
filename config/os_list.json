@@ -8,10 +8,12 @@
       "release_date": "2026-10-25",
       "kernel": "5.15",
       "supported_models": [
+        "pi3",
         "pi4",
         "pi5"
       ],
       "devices": [
+        "pi3-64bit",
         "pi4-64bit",
         "pi5-64bit"
       ],

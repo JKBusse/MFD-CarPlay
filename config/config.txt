@@ -10,6 +10,19 @@ dtparam=i2c_arm=on
 dtparam=i2s=off
 dtparam=spi=off
 
+[pi3]
+# Same legacy DPI/VGA666 path as the Pi 4 below, without the Pi 4 overclock.
+enable_dpi_lcd=1
+display_default_lcd=1
+disable_overscan=1
+dtoverlay=vga666
+dpi_output_format=0x15
+dpi_group=2
+dpi_mode=87
+hdmi_timings=376 1 16 32 55 276 1 3 2 23 0 0 0 50 0 7363200 1 #PAL
+dtoverlay=vc4-fkms-v3d
+disable_fw_kms_setup=1
+
 [pi4]
 arm_freq=2000
 gpu_freq=750
