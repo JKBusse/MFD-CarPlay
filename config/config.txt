@@ -2,9 +2,6 @@
 dtparam=audio=on
 boot_delay=0
 
-arm_freq=2000
-gpu_freq=750
-over_voltage=6
 disable_splash=1
 
 disable_poe_fan=1
@@ -13,11 +10,15 @@ dtparam=i2c_arm=on
 dtparam=i2s=off
 dtparam=spi=off
 
+[pi4]
+arm_freq=2000
+gpu_freq=750
+over_voltage=6
+
 enable_dpi_lcd=1
 display_default_lcd=1
 disable_overscan=1
 
-[pi4]
 # Legacy DPI/VGA666 display path for Raspberry Pi 4
 dtoverlay=vga666
 dpi_output_format=0x15
@@ -32,9 +33,16 @@ dtoverlay=vc4-fkms-v3d
 disable_fw_kms_setup=1
 
 [pi5]
-# KMS DPI display path for Raspberry Pi 5
+# KMS DPI display path for Raspberry Pi 5 (RP1). Same pins as the Pi 4 path:
+# VSYNC GPIO2, HSYNC GPIO3, RGB666 on GPIO4-21, both syncs active high.
+# Timings match the Pi 4 hdmi_timings above (7.3632 MHz, 376x276 @ 50.56 Hz).
+# The Pi 5 has no analog audio; the HAT needs a USB sound card for audio.
+# config.txt lines are cut at 98 characters, so the timings go on dtparam lines.
 dtoverlay=vc4-kms-v3d
-dtoverlay=vc4-kms-dpi-generic,hactive=376,hfp=16,hsync=32,hbp=40,vactive=276,vfp=3,vsync=2,vbp=19
+dtoverlay=vc4-kms-dpi-generic
+dtparam=clock-frequency=7363200
+dtparam=hactive=376,hfp=16,hsync=32,hbp=55
+dtparam=vactive=276,vfp=3,vsync=2,vbp=23
 
 [all]
 intial_turbo=30

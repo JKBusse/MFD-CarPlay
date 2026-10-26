@@ -11,6 +11,10 @@
         "pi4",
         "pi5"
       ],
+      "devices": [
+        "pi4-64bit",
+        "pi5-64bit"
+      ],
       "image_download_size": 1236615680,
       "image_size": 7373586432,
       "extract_size": 7373586432,

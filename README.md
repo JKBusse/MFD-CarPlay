@@ -22,9 +22,10 @@ The goal of this project is to bring modern smartphone integration (Apple CarPla
 
 ## Requirements
 
-- Raspberry Pi (Model 4 or newer)
+- Raspberry Pi 4 or Raspberry Pi 5
 - Raspberry Pi MFD HAT
 - VW Radio Navigation System MFD (1999 model)
+- Raspberry Pi 5 only: a USB sound card for the audio to the HAT. The Pi 5 has no 3.5 mm audio jack, and its only analog audio pins (GPIO 12/13) carry picture data for the HAT. Connect the sound card's output to the HAT with the same cable the Pi 4's jack uses. Power the Pi 5 from a USB-C PD supply (27 W) so its USB ports get full current.
 
 ## Installation
 
